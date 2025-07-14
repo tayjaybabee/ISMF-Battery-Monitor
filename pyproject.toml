@@ -1,0 +1,23 @@
+[project]
+name = "ismf-battery-monitor"
+version = "1.0.0.dev1"
+description = ""
+authors = [
+    {name = "Taylor B.",email = "t.blackstone@inspyre.tech"}
+]
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "is-matrix-forge (>=1.0.0.dev7,<2.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+ipython = "^9.3.0"
+prompt-toolkit = "^3.0.51"
+ptipython = "^1.0.1"
+
