@@ -141,7 +141,7 @@ class PowerMonitor(Loggable):
                     The device is currently unplugged from power.
         """
         print(f'plugged status: {get_plugged_status()}')
-        return get_plugged_status(sensors_battery())
+        return get_plugged_status()
 
     @property
     def running(self):
