@@ -56,7 +56,7 @@ def __handle_device_plugged_in(power_monitor):
         pm.controller.is_animating,
         pm.last_state
     )
-    if pm.plugged_in and not pm.controller.is_animating and (not pm.last_state or pm.last_state is None):
+    if pm.plugged_in and not pm.controller.is_animating and not pm.last_state:
         pm.notify('plugged')
         pm.controller.clear()
         pm._last_state = True
