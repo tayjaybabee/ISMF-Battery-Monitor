@@ -20,6 +20,7 @@ CONTROLLERS = get_controllers(threaded=True)
 
 def main():
     pm = PowerMonitor(CONTROLLERS[0])
+    pm.start()
 
 
 if __name__ == '__main__':

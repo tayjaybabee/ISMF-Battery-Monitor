@@ -15,9 +15,9 @@ from is_matrix_forge.led_matrix.display.animations import goodbye_animation
 from is_matrix_forge.led_matrix.helpers.device import check_device
 from is_matrix_forge.monitor import DEFAULT_PLUGGED_SOUND, DEFAULT_UNPLUGGED_SOUND, MOD_LOGGER, PowerMonitorNotRunningError, ECH
 from is_matrix_forge.notify.sounds import Sound
-from is_matrix_forge.monitor.helpers import get_battery_percentage
 
-from is_matrix_forge.monitor.helpers import get_battery_percentage, get_plugged_status
+from ismf_battery_monitor.helpers import get_plugged_status
+
 from psutil import sensors_battery
 
 
@@ -140,7 +140,6 @@ class PowerMonitor(Loggable):
                 False;
                     The device is currently unplugged from power.
         """
-        print(f'plugged status: {get_plugged_status()}')
         return get_plugged_status()
 
     @property
@@ -203,6 +202,13 @@ class PowerMonitor(Loggable):
 
     @property
     def start_time(self) -> Optional[float]:
+        """
+        The time the monitor was started, if applicable.
+
+        Returns:
+            Optional[float]:
+                The time the monitor was started. `None` otherwise.
+        """
         return self.__start_time
 
     @property
