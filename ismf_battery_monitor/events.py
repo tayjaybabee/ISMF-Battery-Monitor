@@ -49,11 +49,12 @@ def event_to_bool(event: str) -> bool:
 def __handle_device_plugged_in(power_monitor):
     pm = power_monitor
     log = MOD_LOGGER.get_child('__handle_device_plugged_in')
-    log.debug(f'Raw value from `PowerMonitor().plugged_in`: {pm.plugged_in}')
     log.debug(
-        f'Plugged in: {pm.plugged_in} '
-        f'Controller Animating: {pm.controller.is_animating}'
-        f'Last State: {pm.last_state}'
+        "PowerMonitor plugged_in event: raw_value=%r, plugged_in=%r, controller_animating=%r, last_state=%r",
+        pm.plugged_in,
+        pm.plugged_in,
+        pm.controller.is_animating,
+        pm.last_state
     )
     if pm.plugged_in and not pm.controller.is_animating and (not pm.last_state or pm.last_state is None):
         pm.notify('plugged')
