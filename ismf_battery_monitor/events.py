@@ -42,7 +42,7 @@ def event_to_bool(event: str) -> bool:
         log.debug(f'Event "{event}" determined to mean "unplugged"/False')
         return False
     else:
-        log.error('Unable to determine event meaning')
+        log.error(f'Unable to determine event meaning for event "{event}"')
         raise ValueError(f'{event} is not a valid boolean value.')
 
 
