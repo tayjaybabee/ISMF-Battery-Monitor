@@ -1,7 +1,8 @@
+from importlib import resources
+
 from easy_exit_calls import ExitCallHandler
 from is_matrix_forge.led_matrix.controller.helpers import find_leftmost, find_rightmost
 from is_matrix_forge.led_matrix.display.animations.animation import Animation
-from is_matrix_forge.led_matrix.display.grid.composite import CompositeGrid
 from inspyre_toolbox.exceptional import CustomRootException
 
 from ismf_battery_monitor.controllers import cached_controllers
@@ -12,6 +13,13 @@ ECH = ExitCallHandler()
 
 
 RUNNING_ANIMATION_THREADS = []
+
+
+def _load_animation_from_package(filename: str) -> Animation:
+    """Load an animation JSON file bundled with the package."""
+
+    animation_path = resources.files(__package__) / filename
+    return Animation.from_file(str(animation_path))
 
 
 class AnimationException(CustomRootException):
@@ -94,7 +102,7 @@ def drain_progress(
     ensure_thread_safety(controller)
     controller.clear()
 
-    ani = Animation.from_file('batt_down.json')
+    ani = _load_animation_from_package('batt_down.json')
 
     ani.set_all_frame_durations(1)
 
@@ -130,7 +138,7 @@ def second_matrix_unplugged(controller=None, loop=True):
     ensure_thread_safety(controller)
     controller.clear()
 
-    ani = Animation.from_file('batt_down.json')
+    ani = _load_animation_from_package('batt_down.json')
 
     ani.set_all_frame_durations(1)
 

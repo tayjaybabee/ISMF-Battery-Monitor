@@ -1,8 +1,6 @@
-"""Backwards compatible module entry point."""
+"""Allow ``python -m ismf_battery_monitor`` execution."""
 
 from .scripts.battery_monitor.main import main
-
-__all__ = ['main']
 
 if __name__ == '__main__':  # pragma: no cover
     main()

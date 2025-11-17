@@ -81,6 +81,8 @@ class BatteryMonitorArgumentParser(ArgumentParser):
         display_group.add_argument(
             '--digits-on-bottom',
             action='store_true',
+            dest='digits_on_bottom',
+            default=None,
             help='Force battery percentage digits to bottom of display'
         )
         display_group.add_argument(

@@ -1,4 +1,4 @@
-from typing import List, Literal
+from typing import List, Literal, Optional
 from is_matrix_forge.led_matrix.controller.helpers import find_leftmost, find_rightmost
 from is_matrix_forge.led_matrix.display.grid.composite import BackgroundGrid, ForegroundGrid, CompositeGrid
 from is_matrix_forge.led_matrix.controller import LEDMatrixController
@@ -12,7 +12,12 @@ CONTROLLER_MAP = {
 cached_found_controllers = []
 
 
-def get_composite_scene_for_battery_level(battery_percent: float):
+def get_composite_scene_for_battery_level(
+        battery_percent: float,
+        *,
+        digits_on_bottom: Optional[bool] = None,
+        invert_on_overlap: bool = True,
+):
     """
     Returns a CompositeGrid scene for the given battery percentage.
 
@@ -31,26 +36,37 @@ def get_composite_scene_for_battery_level(battery_percent: float):
 
     fg = ForegroundGrid()
 
-    on_bottom = False
-
-    if p > 85:
-        on_bottom = True
+    if digits_on_bottom is None:
+        on_bottom = p > 85
+    else:
+        on_bottom = digits_on_bottom
 
     fg.draw_digits(p, bottom_of_grid=on_bottom)
 
-    return CompositeGrid(background=bg, foreground=fg, invert_on_overlap=True)
+    return CompositeGrid(
+        background=bg,
+        foreground=fg,
+        invert_on_overlap=invert_on_overlap,
+    )
 
 
 def draw_battery_level(
         battery_percent: float,
         grid: CompositeGrid = None,
         side: Literal['right', 'left'] = 'left',
-        controllers: List[LEDMatrixController] = None
+        controllers: List[LEDMatrixController] = None,
+        *,
+        digits_on_bottom: Optional[bool] = None,
+        invert_on_overlap: bool = True,
 ):
     global cached_found_controllers
 
     if grid is None:
-        grid = get_composite_scene_for_battery_level(battery_percent)
+        grid = get_composite_scene_for_battery_level(
+            battery_percent,
+            digits_on_bottom=digits_on_bottom,
+            invert_on_overlap=invert_on_overlap,
+        )
 
     if controllers is None and not cached_found_controllers:
         from is_matrix_forge.led_matrix.controller import get_controllers
