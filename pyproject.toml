@@ -1,14 +1,16 @@
 [project]
 name = "ismf-battery-monitor"
-version = "1.0.0.dev1"
-description = ""
+version = "1.0.0-dev.1"
+description = "Get \"at-a-glance\" battery status using your Framework 16 LED matrix module!"
 authors = [
     {name = "Taylor B.",email = "t.blackstone@inspyre.tech"}
 ]
+license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.12,<4.0"
 dependencies = [
-    "is-matrix-forge (>=1.0.0.dev7,<2.0.0)"
+    "is-matrix-forge (>=1.0.0.dev28)",
+    "platformdirs>=4.0.0"
 ]
 
 
@@ -16,8 +18,12 @@ dependencies = [
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.poetry.dependencies]
+is-matrix-forge = {allow-prereleases = true}
+platformdirs = ">=4.0.0"
+
 [tool.poetry.group.dev.dependencies]
-ipython = "^9.3.0"
-prompt-toolkit = "^3.0.51"
+ipython = "^9.6.0"
+prompt-toolkit = "^3.0.52"
 ptipython = "^1.0.1"
 
