@@ -5,9 +5,11 @@ from __future__ import annotations
 import logging
 import time
 from threading import Event
-from typing import List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 from easy_exit_calls import ExitCallHandler
+
+from is_matrix_forge.led_matrix.controller.helpers import find_leftmost, find_rightmost
 
 from ...animations import plugged_in, unplugged
 from ...controllers import get_cached_controllers
@@ -29,14 +31,18 @@ def _configure_logging(args) -> logging.Logger:
         else logging.WARNING
     )
 
-    logging_kwargs = {
-        'level': level,
-        'format': '[%(asctime)s] %(levelname)s: %(message)s',
-    }
+    logger = logging.getLogger('ismf_battery_monitor.cli')
+    logger.setLevel(level)
+    logger.handlers.clear()
+    handler: logging.Handler
     if args.log_file:
-        logging_kwargs['filename'] = args.log_file
-    logging.basicConfig(**logging_kwargs)
-    return logging.getLogger('ismf_battery_monitor.cli')
+        handler = logging.FileHandler(args.log_file, encoding='utf-8')
+    else:
+        handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s'))
+    logger.addHandler(handler)
+    logger.propagate = False
+    return logger
 
 
 class BatteryMonitorCLI:
@@ -52,6 +58,7 @@ class BatteryMonitorCLI:
         self.exit_handler = ExitCallHandler()
         self.exit_handler.register_handler(self._shutdown)
         self._monitor_started = False
+        self._controller_states: Dict[object, Dict[str, object]] = {}
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
@@ -62,11 +69,62 @@ class BatteryMonitorCLI:
         if not controllers:
             raise RuntimeError('No LED matrix controllers detected.')
 
+        controllers = self._filter_controllers(controllers)
+        if not controllers:
+            raise RuntimeError('No LED matrix controllers matched the requested side selection.')
+
         for controller in controllers:
             if self.args.brightness is not None:
                 controller.set_brightness(self.args.brightness)
             controller.clear()
+            self._controller_states.setdefault(controller, {})
+            self._apply_keep_alive(controller, True)
+            if self.args.breathing:
+                self._set_breathing(controller, True)
         return controllers
+
+    def _filter_controllers(self, controllers: List[object]) -> List[object]:
+        if getattr(self.args, 'left_only', False):
+            selected = [find_leftmost(controllers)]
+        elif getattr(self.args, 'right_only', False):
+            selected = [find_rightmost(controllers)]
+        else:
+            selected = controllers
+        return [ctrl for ctrl in selected if ctrl is not None]
+
+    def _apply_keep_alive(self, controller, enabled: bool) -> None:
+        if hasattr(controller, 'keep_alive'):
+            state = self._controller_states.setdefault(controller, {})
+            if 'keep_alive' not in state:
+                state['keep_alive'] = getattr(controller, 'keep_alive', False)
+            try:
+                controller.keep_alive = enabled
+            except Exception as exc:  # pragma: no cover - hardware specific
+                self.logger.debug('Failed to toggle keep_alive for %s: %s', controller, exc)
+
+    def _set_breathing(self, controller, enabled: bool) -> None:
+        state = self._controller_states.setdefault(controller, {})
+        if hasattr(controller, 'breathing'):
+            if 'breathing' not in state:
+                state['breathing'] = getattr(controller, 'breathing', False)
+            try:
+                controller.breathing = enabled
+            except Exception as exc:  # pragma: no cover - hardware specific
+                self.logger.debug('Failed to toggle breathing for %s: %s', controller, exc)
+
+    def _restore_controllers(self) -> None:
+        for controller, state in self._controller_states.items():
+            if 'keep_alive' in state and hasattr(controller, 'keep_alive'):
+                try:
+                    controller.keep_alive = state['keep_alive']
+                except Exception as exc:  # pragma: no cover - hardware specific
+                    self.logger.debug('Failed to restore keep_alive for %s: %s', controller, exc)
+            if 'breathing' in state and hasattr(controller, 'breathing'):
+                try:
+                    controller.breathing = state['breathing']
+                except Exception as exc:  # pragma: no cover - hardware specific
+                    self.logger.debug('Failed to restore breathing for %s: %s', controller, exc)
+        self._controller_states.clear()
 
     def _shutdown(self, *_):
         if self.stop_event.is_set():
@@ -77,6 +135,7 @@ class BatteryMonitorCLI:
         self.stop_event.set()
         if self._monitor_started:
             self.monitor.stop()
+        self._restore_controllers()
 
     def _wait_for_stop(self) -> None:
         try:
@@ -94,7 +153,7 @@ class BatteryMonitorCLI:
             return
 
         pct = status.battery_percent
-        self._draw_scene(pct)
+        self._draw_scene(pct, status.charging)
         self._maybe_run_animation(status.ac_online)
         self._log_battery_level(pct)
         self.last_plugged_state = status.ac_online
@@ -102,11 +161,12 @@ class BatteryMonitorCLI:
     def _log_unavailable(self, status) -> None:
         self.logger.debug('Battery percent unavailable in snapshot: %s', status)
 
-    def _draw_scene(self, battery_percent: int) -> None:
+    def _draw_scene(self, battery_percent: int, charging_state: Optional[bool]) -> None:
         scene = get_composite_scene_for_battery_level(
             battery_percent,
             digits_on_bottom=self.args.digits_on_bottom,
             invert_on_overlap=self.args.invert_on_overlap,
+            charging_state=charging_state,
         )
 
         for controller in self.controllers:
@@ -126,10 +186,16 @@ class BatteryMonitorCLI:
             return
 
         animation_fn = plugged_in if ac_online else unplugged
-        try:
-            animation_fn(self.controllers[0])
-        except Exception as exc:  # pragma: no cover - hardware specific
-            self.logger.warning('Failed to run animation: %s', exc)
+        for controller in self.controllers:
+            try:
+                animation_fn(
+                    controller,
+                    brightness=self.args.animation_brightness,
+                    frame_duration=self.args.frame_duration,
+                    direction=self.args.scroll_direction,
+                )
+            except Exception as exc:  # pragma: no cover - hardware specific
+                self.logger.warning('Failed to run animation on %s: %s', controller, exc)
 
     def _log_battery_level(self, battery_percent: int) -> None:
         if battery_percent <= self.args.critical_battery_threshold:

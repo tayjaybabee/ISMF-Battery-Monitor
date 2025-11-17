@@ -13,7 +13,6 @@ dependencies = [
     "platformdirs>=4.0.0",
     "psutil>=5.9.0",
     "easy-exit-calls>=1.0.0.dev1",
-    "inspyre-toolbox>=0.1.0"
 ]
 
 [build-system]
@@ -25,15 +24,13 @@ is-matrix-forge = {allow-prereleases = true}
 platformdirs = ">=4.0.0"
 psutil = ">=5.9.0"
 easy-exit-calls = ">=1.0.0.dev1"
-inspyre-toolbox = ">=0.1.0"
 
 [tool.poetry]
 packages = [
     { include = "ismf_battery_monitor" }
 ]
 include = [
-    "ismf_battery_monitor/*.json",
-    "ismf_battery_monitor/assets/*.json",
+    "ismf_battery_monitor/**/*.json",
 ]
 
 [tool.poetry.scripts]

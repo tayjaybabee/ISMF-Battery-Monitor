@@ -28,6 +28,8 @@ def _install_is_matrix_forge_stub() -> None:
             self._thread_safe = True
             self.brightness = 50
             self.device = self
+            self.keep_alive = False
+            self.breathing = False
 
         def set_brightness(self, value):
             self.brightness = value
@@ -47,11 +49,26 @@ def _install_is_matrix_forge_stub() -> None:
     def find_rightmost(controllers):
         return controllers[-1] if controllers else None
 
-    class BackgroundGrid:
-        def fill_bar(self, _):
-            return None
+    class _BaseGrid:
+        def __init__(self):
+            self.width = 9
+            self.height = 34
+            self._grid = [[0 for _ in range(self.height)] for _ in range(self.width)]
 
-    class ForegroundGrid:
+    class BackgroundGrid(_BaseGrid):
+        def __init__(self):
+            super().__init__()
+
+        def fill_bar(self, value):
+            rows_to_fill = max(0, min(self.height, int((value / 100) * self.height)))
+            for x in range(self.width):
+                for y in range(rows_to_fill):
+                    self._grid[x][self.height - y - 1] = 1
+
+    class ForegroundGrid(_BaseGrid):
+        def __init__(self):
+            super().__init__()
+
         def draw_digits(self, *_args, **_kwargs):
             return None
 
@@ -140,52 +157,6 @@ def _install_easy_exit_calls_stub() -> None:
     sys.modules['easy_exit_calls'] = module
 
 
-def _install_inspyre_toolbox_stub() -> None:
-    if 'inspyre_toolbox' in sys.modules:
-        return
-
-    root = types.ModuleType('inspyre_toolbox')
-    exceptional = types.ModuleType('inspyre_toolbox.exceptional')
-
-    class CustomRootException(Exception):
-        pass
-
-    exceptional.CustomRootException = CustomRootException
-
-    syntactic_pkg = types.ModuleType('inspyre_toolbox.syntactic_sweets')
-    classes_pkg = types.ModuleType('inspyre_toolbox.syntactic_sweets.classes')
-    decorators_pkg = types.ModuleType('inspyre_toolbox.syntactic_sweets.classes.decorators')
-    decorators_alias_pkg = types.ModuleType('inspyre_toolbox.syntactic_sweets.classes.decorators.aliases')
-
-    def validate_type(*_args, **_kwargs):
-        return None
-
-    def add_aliases(*_args, **_kwargs):
-        return None
-
-    def method_alias(*_args, **_kwargs):
-        return None
-
-    classes_pkg.validate_type = validate_type
-    decorators_pkg.validate_type = validate_type
-    decorators_alias_pkg.add_aliases = add_aliases
-    decorators_alias_pkg.method_alias = method_alias
-
-    root.exceptional = exceptional
-    root.syntactic_sweets = syntactic_pkg
-    syntactic_pkg.classes = classes_pkg
-    classes_pkg.decorators = decorators_pkg
-    decorators_pkg.aliases = decorators_alias_pkg
-
-    sys.modules['inspyre_toolbox'] = root
-    sys.modules['inspyre_toolbox.exceptional'] = exceptional
-    sys.modules['inspyre_toolbox.syntactic_sweets'] = syntactic_pkg
-    sys.modules['inspyre_toolbox.syntactic_sweets.classes'] = classes_pkg
-    sys.modules['inspyre_toolbox.syntactic_sweets.classes.decorators'] = decorators_pkg
-    sys.modules['inspyre_toolbox.syntactic_sweets.classes.decorators.aliases'] = decorators_alias_pkg
-
-
 def pytest_configure(config):  # pragma: no cover - pytest hook
     _install_is_matrix_forge_stub()
     _install_easy_exit_calls_stub()
-    _install_inspyre_toolbox_stub()

@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
+from abc import ABC
+from pathlib import Path
 from typing import Union, Optional
 
 from chime import play_wav
 
-from inspyre_toolbox.syntactic_sweets.classes.decorators.aliases import add_aliases, method_alias
+from ismf_battery_monitor._compat import add_aliases, method_alias
 
 from is_matrix_forge.log_engine import ROOT_LOGGER as PARENT_LOGGER
 from is_matrix_forge.assets.audio import PLUG_ALERT_MAP

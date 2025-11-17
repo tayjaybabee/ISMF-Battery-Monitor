@@ -6,7 +6,7 @@ from time import sleep
 from typing import Optional, Union
 
 from inspy_logger import Loggable
-from inspyre_toolbox.syntactic_sweets.classes import validate_type
+from ismf_battery_monitor._compat import validate_type
 from serial.tools.list_ports_common import ListPortInfo
 
 from is_matrix_forge.common.helpers import percentage_to_value
