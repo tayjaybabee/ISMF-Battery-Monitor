@@ -120,5 +120,72 @@ def _install_is_matrix_forge_stub() -> None:
     sys.modules['is_matrix_forge.led_matrix.display.animations.animation'] = animation_mod
 
 
+def _install_easy_exit_calls_stub() -> None:
+    if 'easy_exit_calls' in sys.modules:
+        return
+
+    module = types.ModuleType('easy_exit_calls')
+
+    class ExitCallHandler:
+        def __init__(self):
+            self._handlers = set()
+
+        def register_handler(self, fn):
+            self._handlers.add(fn)
+
+        def unregister_handler(self, fn):
+            self._handlers.discard(fn)
+
+    module.ExitCallHandler = ExitCallHandler
+    sys.modules['easy_exit_calls'] = module
+
+
+def _install_inspyre_toolbox_stub() -> None:
+    if 'inspyre_toolbox' in sys.modules:
+        return
+
+    root = types.ModuleType('inspyre_toolbox')
+    exceptional = types.ModuleType('inspyre_toolbox.exceptional')
+
+    class CustomRootException(Exception):
+        pass
+
+    exceptional.CustomRootException = CustomRootException
+
+    syntactic_pkg = types.ModuleType('inspyre_toolbox.syntactic_sweets')
+    classes_pkg = types.ModuleType('inspyre_toolbox.syntactic_sweets.classes')
+    decorators_pkg = types.ModuleType('inspyre_toolbox.syntactic_sweets.classes.decorators')
+    decorators_alias_pkg = types.ModuleType('inspyre_toolbox.syntactic_sweets.classes.decorators.aliases')
+
+    def validate_type(*_args, **_kwargs):
+        return None
+
+    def add_aliases(*_args, **_kwargs):
+        return None
+
+    def method_alias(*_args, **_kwargs):
+        return None
+
+    classes_pkg.validate_type = validate_type
+    decorators_pkg.validate_type = validate_type
+    decorators_alias_pkg.add_aliases = add_aliases
+    decorators_alias_pkg.method_alias = method_alias
+
+    root.exceptional = exceptional
+    root.syntactic_sweets = syntactic_pkg
+    syntactic_pkg.classes = classes_pkg
+    classes_pkg.decorators = decorators_pkg
+    decorators_pkg.aliases = decorators_alias_pkg
+
+    sys.modules['inspyre_toolbox'] = root
+    sys.modules['inspyre_toolbox.exceptional'] = exceptional
+    sys.modules['inspyre_toolbox.syntactic_sweets'] = syntactic_pkg
+    sys.modules['inspyre_toolbox.syntactic_sweets.classes'] = classes_pkg
+    sys.modules['inspyre_toolbox.syntactic_sweets.classes.decorators'] = decorators_pkg
+    sys.modules['inspyre_toolbox.syntactic_sweets.classes.decorators.aliases'] = decorators_alias_pkg
+
+
 def pytest_configure(config):  # pragma: no cover - pytest hook
     _install_is_matrix_forge_stub()
+    _install_easy_exit_calls_stub()
+    _install_inspyre_toolbox_stub()

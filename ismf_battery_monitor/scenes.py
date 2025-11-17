@@ -36,10 +36,7 @@ def get_composite_scene_for_battery_level(
 
     fg = ForegroundGrid()
 
-    if digits_on_bottom is None:
-        on_bottom = p > 85
-    else:
-        on_bottom = digits_on_bottom
+    on_bottom = p > 85 if digits_on_bottom is None else digits_on_bottom
 
     fg.draw_digits(p, bottom_of_grid=on_bottom)
 

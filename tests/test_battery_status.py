@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+import pytest
+
 from ismf_battery_monitor.battery import BatteryStatus
 
 
@@ -24,6 +26,18 @@ def test_manual_battery_status_fields():
     assert status.no_battery is False
 
 
+def test_manual_status_allows_missing_percentage():
+    status = BatteryStatus(
+        ac_online=False,
+        battery_percent=None,
+        charging=False,
+        no_battery=True,
+    )
+
+    assert status.battery_percent is None
+    assert status.no_battery is True
+
+
 def test_status_from_psutil(monkeypatch):
     fake_batt = SimpleNamespace(
         power_plugged=True,
@@ -37,3 +51,10 @@ def test_status_from_psutil(monkeypatch):
     assert status.ac_online is True
     assert status.battery_percent == 75
     assert status.secs_left == 120
+
+
+def test_status_from_psutil_none(monkeypatch):
+    monkeypatch.setattr('ismf_battery_monitor.battery.psutil.sensors_battery', lambda: None)
+
+    with pytest.raises(RuntimeError):
+        BatteryStatus()

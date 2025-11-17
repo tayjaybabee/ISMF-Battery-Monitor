@@ -15,15 +15,30 @@ ECH = ExitCallHandler()
 RUNNING_ANIMATION_THREADS = []
 
 
+class AnimationException(CustomRootException):
+    """Base exception for animation related failures."""
+
+
 def _load_animation_from_package(filename: str) -> Animation:
     """Load an animation JSON file bundled with the package."""
 
-    animation_path = resources.files(__package__) / filename
-    return Animation.from_file(str(animation_path))
+    try:
+        resource = resources.files(__package__) / filename
+    except (FileNotFoundError, ModuleNotFoundError, AttributeError) as exc:  # pragma: no cover - defensive
+        raise AnimationException(
+            f"Animation file '{filename}' is not bundled with the package."
+        ) from exc
 
+    if not resource.exists():  # pragma: no cover - defensive
+        raise AnimationException(f"Animation file '{filename}' could not be located.")
 
-class AnimationException(CustomRootException):
-    pass
+    with resources.as_file(resource) as animation_path:
+        try:
+            return Animation.from_file(str(animation_path))
+        except FileNotFoundError as exc:  # pragma: no cover - defensive
+            raise AnimationException(
+                f"Animation file '{filename}' became unavailable during load."
+            ) from exc
 
 
 class ControllerNotThreadsafeError(AnimationException):
