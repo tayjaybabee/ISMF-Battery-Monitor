@@ -31,21 +31,32 @@ def event_to_bool(event: str) -> bool:
             ...
         ValueError: invalid is not a valid boolean value.
     """
+    log = MOD_LOGGER.get_child('event_to_bool')
     event = event.lower().strip()
-    print(event)
+    log.debug(f'Received {event}...')
 
     if event in ['on', 'true', 'plugged']:
+        log.debug(f'Event "{event}" determined to mean "plugged"/True')
         return True
     elif event in ['off', 'false', 'unplugged']:
+        log.debug(f'Event "{event}" determined to mean "unplugged"/False')
         return False
     else:
+        log.error(f'Unable to determine event meaning for event "{event}"')
         raise ValueError(f'{event} is not a valid boolean value.')
 
 
 def __handle_device_plugged_in(power_monitor):
     pm = power_monitor
-    print(f'plugged in {pm.plugged_in}')
-    if pm.plugged_in and not pm.controller.is_animating and (not pm.last_state or pm.last_state is None):
+    log = MOD_LOGGER.get_child('__handle_device_plugged_in')
+    log.debug(
+        "PowerMonitor plugged_in event: raw_value=%r, plugged_in=%r, controller_animating=%r, last_state=%r",
+        pm.plugged_in,
+        pm.plugged_in,
+        pm.controller.is_animating,
+        pm.last_state
+    )
+    if pm.plugged_in and not pm.controller.is_animating and not pm.last_state:
         pm.notify('plugged')
         pm.controller.clear()
         pm._last_state = True
@@ -64,14 +75,10 @@ def __handle_device_unplugged(power_monitor):
 def handle_event(event: str, power_monitor: PowerMonitor):
     log = MOD_LOGGER.get_child('handle_event')
     log.debug(f'Handling {event}...')
-
-    #if not isinstance(power_monitor, PowerMonitor):
-    #    raise TypeError(f'{power_monitor} is not a PowerMonitor instance.')
-    #else:
-    #   log.debug(f'{power_monitor} is a PowerMonitor instance.')
-
+    log.debug(f'PowerMonitor: {power_monitor}')
+    log.debug(f'PowerMonitor.last_state: {power_monitor.last_state}')
+    log.debug(f'PowerMonitor.plugged_in: {power_monitor.plugged_in}')
     event = event_to_bool(event)
-    print(event)
 
     pm = power_monitor
 
