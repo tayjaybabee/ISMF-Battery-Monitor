@@ -22,8 +22,14 @@ class AnimationException(CustomRootException):
 def _load_animation_from_package(filename: str) -> Animation:
     """Load an animation JSON file bundled with the package."""
 
+    package = __package__
+    if not package:  # pragma: no cover - defensive
+        raise AnimationException(
+            "Animation resources are unavailable when 'animations' is executed directly."
+        )
+
     try:
-        resource = resources.files(__package__) / filename
+        resource = resources.files(package) / filename
     except (FileNotFoundError, ModuleNotFoundError, AttributeError) as exc:  # pragma: no cover - defensive
         raise AnimationException(
             f"Animation file '{filename}' is not bundled with the package."

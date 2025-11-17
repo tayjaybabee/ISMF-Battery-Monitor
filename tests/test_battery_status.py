@@ -38,6 +38,30 @@ def test_manual_status_allows_missing_percentage():
     assert status.no_battery is True
 
 
+def test_battery_status_zero_percent():
+    status = BatteryStatus(
+        ac_online=False,
+        battery_percent=0,
+        charging=False,
+        no_battery=False,
+    )
+
+    assert status.battery_percent == 0
+    assert status.no_battery is False
+
+
+def test_battery_status_hundred_percent():
+    status = BatteryStatus(
+        ac_online=True,
+        battery_percent=100,
+        charging=True,
+        no_battery=False,
+    )
+
+    assert status.battery_percent == 100
+    assert status.no_battery is False
+
+
 def test_status_from_psutil(monkeypatch):
     fake_batt = SimpleNamespace(
         power_plugged=True,
