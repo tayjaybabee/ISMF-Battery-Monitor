@@ -82,3 +82,16 @@ def test_status_from_psutil_none(monkeypatch):
 
     with pytest.raises(RuntimeError):
         BatteryStatus()
+
+
+def test_status_from_psutil_invalid(monkeypatch):
+    class CorruptedBattery:
+        secsleft = 'not_a_number'
+
+    monkeypatch.setattr('ismf_battery_monitor.battery.psutil.sensors_battery', lambda: CorruptedBattery())
+
+    status = BatteryStatus()
+
+    assert status.ac_online is None
+    assert status.battery_percent is None
+    assert status.secs_left is None

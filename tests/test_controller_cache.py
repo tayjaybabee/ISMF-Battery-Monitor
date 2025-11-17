@@ -59,3 +59,23 @@ def test_controller_cache_remove_where_no_match():
 
     assert removed == 0
     assert len(cache) == 2
+
+
+def test_controller_cache_remove_where_multiple_matches():
+    cache = ControllerCache()
+    cache.clear()
+    cache.key_fn = lambda c: id(c)
+
+    cache.extend([
+        DummyController('shared'),
+        DummyController('shared'),
+        DummyController('unique'),
+    ])
+
+    removed = cache.remove_where(lambda c: c.port_name == 'shared')
+
+    assert removed == 2
+    assert len(cache) == 1
+    assert cache.first().port_name == 'unique'
+
+    cache.key_fn = lambda c: getattr(c, 'port_name', id(c))

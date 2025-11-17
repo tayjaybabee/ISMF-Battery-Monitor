@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
-import signal
 import time
 from threading import Event
 from typing import List, Optional, Sequence
+
+from easy_exit_calls import ExitCallHandler
 
 from ...animations import plugged_in, unplugged
 from ...controllers import get_cached_controllers
@@ -18,14 +19,15 @@ from .arguments import BatteryMonitorArgumentParser
 def _configure_logging(args) -> logging.Logger:
     """Configure logging level and destination based on CLI args."""
 
-    if args.quiet:
-        level = logging.ERROR
-    else:
-        level = logging.WARNING
-        if args.verbose == 1:
-            level = logging.INFO
-        elif args.verbose >= 2:
-            level = logging.DEBUG
+    level = (
+        logging.ERROR
+        if args.quiet
+        else logging.INFO
+        if args.verbose == 1
+        else logging.DEBUG
+        if args.verbose >= 2
+        else logging.WARNING
+    )
 
     logging_kwargs = {
         'level': level,
@@ -47,6 +49,9 @@ class BatteryMonitorCLI:
         self.stop_event = Event()
         self.controllers: List[object] = []
         self.last_plugged_state: Optional[bool] = None
+        self.exit_handler = ExitCallHandler()
+        self.exit_handler.register_handler(self._shutdown)
+        self._monitor_started = False
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
@@ -63,18 +68,14 @@ class BatteryMonitorCLI:
             controller.clear()
         return controllers
 
-    def _register_signals(self) -> None:
-        for sig in (signal.SIGINT, signal.SIGTERM):  # pragma: no branch - small set
-            try:
-                signal.signal(sig, self._shutdown)
-            except ValueError:
-                if sig is signal.SIGINT:
-                    raise
-
     def _shutdown(self, *_):
-        if not self.stop_event.is_set():
+        if self.stop_event.is_set():
+            return
+
+        if self._monitor_started:
             self.logger.info('Stopping battery monitor...')
-            self.stop_event.set()
+        self.stop_event.set()
+        if self._monitor_started:
             self.monitor.stop()
 
     def _wait_for_stop(self) -> None:
@@ -89,11 +90,21 @@ class BatteryMonitorCLI:
     # ------------------------------------------------------------------
     def _handle_status(self, status) -> None:
         if status.battery_percent is None:
-            self.logger.debug('Battery percent unavailable in snapshot: %s', status)
+            self._log_unavailable(status)
             return
 
+        pct = status.battery_percent
+        self._draw_scene(pct)
+        self._maybe_run_animation(status.ac_online)
+        self._log_battery_level(pct)
+        self.last_plugged_state = status.ac_online
+
+    def _log_unavailable(self, status) -> None:
+        self.logger.debug('Battery percent unavailable in snapshot: %s', status)
+
+    def _draw_scene(self, battery_percent: int) -> None:
         scene = get_composite_scene_for_battery_level(
-            status.battery_percent,
+            battery_percent,
             digits_on_bottom=self.args.digits_on_bottom,
             invert_on_overlap=self.args.invert_on_overlap,
         )
@@ -104,37 +115,45 @@ class BatteryMonitorCLI:
             except Exception as exc:  # pragma: no cover - hardware specific
                 self.logger.error('Failed to draw scene on controller %s: %s', controller, exc)
 
-        if (
+    def _maybe_run_animation(self, ac_online: Optional[bool]) -> None:
+        if not (
             self.args.show_animations
             and self.controllers
             and self.last_plugged_state is not None
-            and status.ac_online != self.last_plugged_state
+            and ac_online is not None
+            and ac_online != self.last_plugged_state
         ):
-            animation_fn = plugged_in if status.ac_online else unplugged
-            try:
-                animation_fn(self.controllers[0])
-            except Exception as exc:  # pragma: no cover - hardware specific
-                self.logger.warning('Failed to run animation: %s', exc)
+            return
 
-        self.last_plugged_state = status.ac_online
+        animation_fn = plugged_in if ac_online else unplugged
+        try:
+            animation_fn(self.controllers[0])
+        except Exception as exc:  # pragma: no cover - hardware specific
+            self.logger.warning('Failed to run animation: %s', exc)
 
-        if status.battery_percent <= self.args.critical_battery_threshold:
-            self.logger.warning('Battery critical: %s%%', status.battery_percent)
-        elif status.battery_percent <= self.args.low_battery_threshold:
-            self.logger.info('Battery low: %s%%', status.battery_percent)
+    def _log_battery_level(self, battery_percent: int) -> None:
+        if battery_percent <= self.args.critical_battery_threshold:
+            self.logger.warning('Battery critical: %s%%', battery_percent)
+        elif battery_percent <= self.args.low_battery_threshold:
+            self.logger.info('Battery low: %s%%', battery_percent)
         else:
-            self.logger.debug('Battery status updated: %s%%', status.battery_percent)
+            self.logger.debug('Battery status updated: %s%%', battery_percent)
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
     def run(self) -> None:
-        self.controllers = self._prepare_controllers()
-        self._register_signals()
-        self.logger.info('Starting battery monitor loop...')
-        self.monitor.start(self._handle_status)
-        self._wait_for_stop()
-        self.logger.info('Battery monitor stopped.')
+        try:
+            self.controllers = self._prepare_controllers()
+            self.logger.info('Starting battery monitor loop...')
+            self.monitor.start(self._handle_status)
+            self._monitor_started = True
+            self._wait_for_stop()
+        finally:
+            self.exit_handler.unregister_handler(self._shutdown)
+            self._shutdown()
+        if self._monitor_started:
+            self.logger.info('Battery monitor stopped.')
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:

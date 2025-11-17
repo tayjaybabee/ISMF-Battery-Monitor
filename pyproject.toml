@@ -16,11 +16,6 @@ dependencies = [
     "inspyre-toolbox>=0.1.0"
 ]
 
-[project.scripts]
-"ismf-battery-monitor" = "ismf_battery_monitor.scripts.battery_monitor.main:main"
-
-
-
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
@@ -37,8 +32,12 @@ packages = [
     { include = "ismf_battery_monitor" }
 ]
 include = [
-    "ismf_battery_monitor/batt_down.json"
+    "ismf_battery_monitor/*.json",
+    "ismf_battery_monitor/assets/*.json",
 ]
+
+[tool.poetry.scripts]
+"ismf-battery-monitor" = "ismf_battery_monitor.scripts.battery_monitor.main:main"
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^9.6.0"
