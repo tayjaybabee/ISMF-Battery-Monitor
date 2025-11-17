@@ -70,16 +70,18 @@ def _apply_charge_indicator(foreground: ForegroundGrid, charging_state: Optional
         return
 
     pattern = CHARGING_ICON if charging_state else DISCHARGING_ICON
-    width = len(pattern)
-    height = len(pattern[0]) if pattern else 0
-    for x in range(width):
-        for y in range(height):
-            if pattern[x][y]:
-                try:
-                    if x < foreground.width and y < foreground.height:  # type: ignore[attr-defined]
-                        foreground._grid[x][y] = 1  # type: ignore[attr-defined]
-                except AttributeError:  # pragma: no cover - fallback if grid lacks internals
-                    return
+    height = len(pattern)
+    width = len(pattern[0]) if pattern else 0
+
+    for row in range(height):
+        for col in range(width):
+            if not pattern[row][col]:
+                continue
+            try:
+                if col < foreground.width and row < foreground.height:  # type: ignore[attr-defined]
+                    foreground._grid[col][row] = 1  # type: ignore[attr-defined]
+            except AttributeError:  # pragma: no cover - fallback if grid lacks internals
+                return
 
 
 def draw_battery_level(

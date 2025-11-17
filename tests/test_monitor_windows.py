@@ -13,14 +13,35 @@ def test_monitor_not_implemented_off_windows():
         DispatchBatteryMonitor()
 
 
-@pytest.mark.parametrize('initial_pct', [0, 5, 10, 20, 55, 80, 99, 100])
-def test_windows_monitor_invokes_callback(monkeypatch, initial_pct):
+@pytest.mark.parametrize(
+    (
+        'initial_pct',
+        'ac_line_status',
+        'battery_flag',
+        'expected_ac_online',
+        'expected_charging',
+    ),
+    [
+        (0, 0, 0, False, False),
+        (10, 0, 0x00, False, False),
+        (25, 1, 0x08, True, True),
+        (85, 1, 0x08, True, True),
+    ],
+)
+def test_windows_monitor_invokes_callback(
+    monkeypatch,
+    initial_pct,
+    ac_line_status,
+    battery_flag,
+    expected_ac_online,
+    expected_charging,
+):
     from ismf_battery_monitor.monitor.windows import BatteryMonitor
 
     snapshots = [
         SimpleNamespace(
-            ACLineStatus=1,
-            BatteryFlag=0,
+            ACLineStatus=ac_line_status,
+            BatteryFlag=battery_flag,
             BatteryLifePercent=initial_pct,
             BatteryLifeTime=3600,
             BatteryFullLifeTime=7200,
@@ -51,3 +72,5 @@ def test_windows_monitor_invokes_callback(monkeypatch, initial_pct):
 
     assert results
     assert results[0].battery_percent == initial_pct
+    assert results[0].ac_online is expected_ac_online
+    assert results[0].charging is expected_charging

@@ -39,6 +39,13 @@ def test_manual_status_allows_missing_percentage():
     assert status.no_battery is True
 
 
+def test_battery_status_defaults_timestamp():
+    before = datetime.now(timezone.utc)
+    status = BatteryStatus(ac_online=True)
+
+    assert status.timestamp >= before
+
+
 def test_battery_status_zero_percent():
     status = BatteryStatus(
         ac_online=False,

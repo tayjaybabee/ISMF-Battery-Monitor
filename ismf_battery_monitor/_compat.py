@@ -27,10 +27,9 @@ def validate_type(*expected_types: type | tuple[type, ...], preferred_type: type
                         break
                     except Exception:
                         continue
-            if expected_types:
-                if not isinstance(coerced, expected_types):
-                    expected = ', '.join(t.__name__ for t in expected_types if isinstance(t, type)) or 'specified types'
-                    raise TypeError(f'Expected value of type {expected}, got {type(coerced).__name__}')
+            if expected_types and not isinstance(coerced, expected_types):
+                expected = ', '.join(t.__name__ for t in expected_types if isinstance(t, type)) or 'specified types'
+                raise TypeError(f'Expected value of type {expected}, got {type(coerced).__name__}')
             return func(self, coerced, *args, **kwargs)
 
         return wrapper
@@ -38,30 +37,20 @@ def validate_type(*expected_types: type | tuple[type, ...], preferred_type: type
     return decorator
 
 
-def method_alias(*aliases: str) -> Callable:
-    """Decorator that records alias names for a method."""
+def alias(*method_aliases: str, **class_aliases: str) -> Callable:
+    """Decorator for registering method aliases or wiring them onto a class."""
 
-    def decorator(func: Callable) -> Callable:
-        setattr(func, '_method_aliases', aliases)
-        return func
+    def decorator(obj: Any) -> Any:
+        if isinstance(obj, type):
+            for _, attr in vars(obj).items():
+                for alias_name in getattr(attr, '_method_aliases', ()):
+                    setattr(obj, alias_name, attr)
+            for new_name, target_name in class_aliases.items():
+                if hasattr(obj, target_name):
+                    setattr(obj, new_name, getattr(obj, target_name))
+            return obj
+
+        setattr(obj, '_method_aliases', method_aliases)
+        return obj
 
     return decorator
-
-
-def add_aliases(cls: type | None = None, **extra_aliases: str) -> Callable | type:
-    """Class decorator that wires method aliases declared via ``method_alias``."""
-
-    def _apply(target_cls: type) -> type:
-        for name, attr in list(vars(target_cls).items()):
-            aliases = getattr(attr, '_method_aliases', ())
-            for alias in aliases:
-                setattr(target_cls, alias, attr)
-        for alias_name, target_name in extra_aliases.items():
-            if hasattr(target_cls, target_name):
-                setattr(target_cls, alias_name, getattr(target_cls, target_name))
-        return target_cls
-
-    if cls is not None:
-        return _apply(cls)
-
-    return _apply

@@ -78,14 +78,15 @@ class BatteryMonitorArgumentParser(ArgumentParser):
             dest='invert_on_overlap',
             help='Disable pixel inversion on overlap'
         )
-        display_group.add_argument(
+        digits_group = display_group.add_mutually_exclusive_group()
+        digits_group.add_argument(
             '--digits-on-bottom',
             action='store_true',
             dest='digits_on_bottom',
             default=None,
             help='Force battery percentage digits to bottom of display'
         )
-        display_group.add_argument(
+        digits_group.add_argument(
             '--digits-on-top',
             action='store_false',
             dest='digits_on_bottom',

@@ -66,7 +66,7 @@ def stop_animation(animation):
     RUNNING_ANIMATION_THREADS.remove(animation)
 
 
-def unplugged(controller, *, brightness: int | None = 50, frame_duration: float = 0.03,
+def unplugged(controller, *, brightness: int | None = None, frame_duration: float = 0.03,
               direction: str = 'vertical_up'):
     """
     Scrolls 'UNPLUGGED' vertically up the specified LED matrix.
@@ -87,7 +87,7 @@ def unplugged(controller, *, brightness: int | None = 50, frame_duration: float 
     if brightness is not None:
         controller.set_brightness(brightness)
     controller.scroll_text('UNPLUGGED', direction=direction, frame_duration=frame_duration)
-    if prev_brightness is not None and brightness is not None:
+    if prev_brightness is not None:
         controller.set_brightness(prev_brightness)
 
 
@@ -106,7 +106,7 @@ def plugged_in(controller, *, brightness: int | None = None, frame_duration: flo
     if brightness is not None:
         controller.set_brightness(brightness)
     controller.scroll_text('PLUGGED IN', direction=direction, frame_duration=frame_duration)
-    if prev_brightness is not None and brightness is not None:
+    if prev_brightness is not None:
         controller.set_brightness(prev_brightness)
 
 

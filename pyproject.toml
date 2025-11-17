@@ -30,7 +30,8 @@ packages = [
     { include = "ismf_battery_monitor" }
 ]
 include = [
-    "ismf_battery_monitor/**/*.json",
+    { path = "ismf_battery_monitor/**/*.json", format = "sdist" },
+    { path = "ismf_battery_monitor/**/*.json", format = "wheel" },
 ]
 
 [tool.poetry.scripts]

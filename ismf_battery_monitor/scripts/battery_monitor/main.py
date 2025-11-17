@@ -18,18 +18,22 @@ from ...scenes import get_composite_scene_for_battery_level
 from .arguments import BatteryMonitorArgumentParser
 
 
+def _determine_log_level(args) -> int:
+    if getattr(args, 'quiet', False):
+        return logging.ERROR
+
+    verbosity = getattr(args, 'verbose', 0) or 0
+    if verbosity >= 2:
+        return logging.DEBUG
+    if verbosity == 1:
+        return logging.INFO
+    return logging.WARNING
+
+
 def _configure_logging(args) -> logging.Logger:
     """Configure logging level and destination based on CLI args."""
 
-    level = (
-        logging.ERROR
-        if args.quiet
-        else logging.INFO
-        if args.verbose == 1
-        else logging.DEBUG
-        if args.verbose >= 2
-        else logging.WARNING
-    )
+    level = _determine_log_level(args)
 
     logger = logging.getLogger('ismf_battery_monitor.cli')
     logger.setLevel(level)
@@ -77,10 +81,9 @@ class BatteryMonitorCLI:
             if self.args.brightness is not None:
                 controller.set_brightness(self.args.brightness)
             controller.clear()
-            self._controller_states.setdefault(controller, {})
-            self._apply_keep_alive(controller, True)
+            self._toggle_flag(controller, 'keep_alive', True)
             if self.args.breathing:
-                self._set_breathing(controller, True)
+                self._toggle_flag(controller, 'breathing', True)
         return controllers
 
     def _filter_controllers(self, controllers: List[object]) -> List[object]:
@@ -92,38 +95,25 @@ class BatteryMonitorCLI:
             selected = controllers
         return [ctrl for ctrl in selected if ctrl is not None]
 
-    def _apply_keep_alive(self, controller, enabled: bool) -> None:
-        if hasattr(controller, 'keep_alive'):
-            state = self._controller_states.setdefault(controller, {})
-            if 'keep_alive' not in state:
-                state['keep_alive'] = getattr(controller, 'keep_alive', False)
-            try:
-                controller.keep_alive = enabled
-            except Exception as exc:  # pragma: no cover - hardware specific
-                self.logger.debug('Failed to toggle keep_alive for %s: %s', controller, exc)
-
-    def _set_breathing(self, controller, enabled: bool) -> None:
+    def _toggle_flag(self, controller, name: str, enabled: bool) -> None:
+        if not hasattr(controller, name):
+            return
         state = self._controller_states.setdefault(controller, {})
-        if hasattr(controller, 'breathing'):
-            if 'breathing' not in state:
-                state['breathing'] = getattr(controller, 'breathing', False)
-            try:
-                controller.breathing = enabled
-            except Exception as exc:  # pragma: no cover - hardware specific
-                self.logger.debug('Failed to toggle breathing for %s: %s', controller, exc)
+        state.setdefault(name, getattr(controller, name))
+        try:
+            setattr(controller, name, enabled)
+        except Exception as exc:  # pragma: no cover - hardware specific
+            self.logger.debug('Failed to toggle %s for %s: %s', name, controller, exc)
 
     def _restore_controllers(self) -> None:
         for controller, state in self._controller_states.items():
-            if 'keep_alive' in state and hasattr(controller, 'keep_alive'):
+            for name, original in state.items():
+                if not hasattr(controller, name):
+                    continue
                 try:
-                    controller.keep_alive = state['keep_alive']
+                    setattr(controller, name, original)
                 except Exception as exc:  # pragma: no cover - hardware specific
-                    self.logger.debug('Failed to restore keep_alive for %s: %s', controller, exc)
-            if 'breathing' in state and hasattr(controller, 'breathing'):
-                try:
-                    controller.breathing = state['breathing']
-                except Exception as exc:  # pragma: no cover - hardware specific
-                    self.logger.debug('Failed to restore breathing for %s: %s', controller, exc)
+                    self.logger.debug('Failed to restore %s for %s: %s', name, controller, exc)
         self._controller_states.clear()
 
     def _shutdown(self, *_):
