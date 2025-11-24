@@ -78,16 +78,31 @@ class BatteryMonitorArgumentParser(ArgumentParser):
             dest='invert_on_overlap',
             help='Disable pixel inversion on overlap'
         )
-        display_group.add_argument(
+        digits_group = display_group.add_mutually_exclusive_group()
+        digits_group.add_argument(
             '--digits-on-bottom',
             action='store_true',
+            dest='digits_on_bottom',
+            default=None,
             help='Force battery percentage digits to bottom of display'
         )
-        display_group.add_argument(
+        digits_group.add_argument(
             '--digits-on-top',
             action='store_false',
             dest='digits_on_bottom',
             help='Force battery percentage digits to top of display'
+        )
+        display_group.add_argument(
+            '--breathing',
+            action='store_true',
+            default=False,
+            help='Enable the controller\'s breathing effect while running'
+        )
+        display_group.add_argument(
+            '--no-breathing',
+            action='store_false',
+            dest='breathing',
+            help='Disable the breathing effect (default)'
         )
         
         # Animation options
@@ -144,6 +159,18 @@ class BatteryMonitorArgumentParser(ArgumentParser):
             action='store_false',
             dest='thread_safe',
             help='Disable thread-safe mode'
+        )
+        selection_group = device_group.add_mutually_exclusive_group()
+        selection_group.add_argument(
+            '--left-only',
+            action='store_true',
+            help='Restrict output to the left matrix only'
+        )
+        selection_group.add_argument(
+            '--right-only', '--only-right', '--right',
+            dest='right_only',
+            action='store_true',
+            help='Restrict output to the right matrix only (alias: --right)'
         )
         
         # Runtime options

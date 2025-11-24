@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
+from abc import ABC
+from pathlib import Path
 from typing import Union, Optional
 
 from chime import play_wav
 
-from inspyre_toolbox.syntactic_sweets.classes.decorators.aliases import add_aliases, method_alias
+from ismf_battery_monitor._compat import alias
 
 from is_matrix_forge.log_engine import ROOT_LOGGER as PARENT_LOGGER
 from is_matrix_forge.assets.audio import PLUG_ALERT_MAP
@@ -13,7 +15,7 @@ from is_matrix_forge.assets.audio import PLUG_ALERT_MAP
 MOD_LOGGER = PARENT_LOGGER.get_child('notify.sounds.base')
 
 
-@add_aliases
+@alias
 class Sound(ABC):
     """
     Abstract base class for audio notifications.
@@ -89,7 +91,7 @@ class Sound(ABC):
 
         self.__wav_file = new
 
-    @method_alias('play')
+    @alias('play')
     def notify(self) -> None:
         """
         Play the audio notification.

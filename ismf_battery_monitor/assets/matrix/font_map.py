@@ -1,7 +1,12 @@
 import json
 from pathlib import Path
+from __future__ import annotations
+
+import json
+from pathlib import Path
 from typing import Dict, List, Optional, Union
-from inspyre_toolbox.syntactic_sweets.classes.decorators import validate_type
+
+from ismf_battery_monitor._compat import validate_type
 
 
 class FontMap:

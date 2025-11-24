@@ -66,15 +66,15 @@ class BatteryStatus:
         if batt is None:
             raise RuntimeError('No battery information available (no battery detected).')
 
-        self.ac_online = bool(batt.power_plugged)
-        self.battery_percent = int(batt.percent) if batt.percent is not None else None
-        self.secs_left = (
-            batt.secsleft
-            if batt.secsleft not in (psutil.POWER_TIME_UNLIMITED, psutil.POWER_TIME_UNKNOWN)
-            else None
-        )
+        power_plugged = getattr(batt, 'power_plugged', None)
+        percent = getattr(batt, 'percent', None)
+        secsleft = getattr(batt, 'secsleft', None)
+
+        self.ac_online = bool(power_plugged) if power_plugged is not None else None
+        self.battery_percent = self._safe_int(percent)
+        self.secs_left = self._normalize_secs_left(secsleft)
         self.secs_full = None  # psutil doesn’t expose full-charge estimate
-        self.charging = bool(batt.power_plugged)
+        self.charging = bool(power_plugged) if power_plugged is not None else None
         self.no_battery = False
 
     def _init_from_args(
@@ -96,6 +96,22 @@ class BatteryStatus:
         self.secs_full = secs_full
         self.charging = charging if charging is not None else False
         self.no_battery = no_battery if no_battery is not None else False
+
+    @staticmethod
+    def _safe_int(value: Optional[object]) -> Optional[int]:
+        try:
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _normalize_secs_left(value: Optional[object]) -> Optional[int]:
+        if value in (psutil.POWER_TIME_UNLIMITED, psutil.POWER_TIME_UNKNOWN):
+            return None
+        try:
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
 
     # ----------------------------------------------------------------------
     # Representation

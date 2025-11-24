@@ -1,10 +1,13 @@
+from __future__ import annotations
+
+from importlib import resources
+
 from easy_exit_calls import ExitCallHandler
 from is_matrix_forge.led_matrix.controller.helpers import find_leftmost, find_rightmost
 from is_matrix_forge.led_matrix.display.animations.animation import Animation
-from is_matrix_forge.led_matrix.display.grid.composite import CompositeGrid
-from inspyre_toolbox.exceptional import CustomRootException
 
 from ismf_battery_monitor.controllers import cached_controllers
+from ismf_battery_monitor._compat import CustomRootException
 
 
 CONTROLLERS = cached_controllers
@@ -15,7 +18,21 @@ RUNNING_ANIMATION_THREADS = []
 
 
 class AnimationException(CustomRootException):
-    pass
+    """Base exception for animation related failures."""
+
+
+def _load_animation_from_package(filename: str) -> Animation:
+    """Load an animation JSON file bundled with the package."""
+
+    package = __package__
+    if not package:  # pragma: no cover - defensive
+        raise AnimationException('Animation resources are unavailable in standalone mode.')
+
+    try:
+        with resources.path(package, filename) as animation_path:
+            return Animation.from_file(str(animation_path))
+    except (FileNotFoundError, ModuleNotFoundError, AttributeError) as exc:
+        raise AnimationException(f"Could not load animation '{filename}'.") from exc
 
 
 class ControllerNotThreadsafeError(AnimationException):
@@ -49,7 +66,8 @@ def stop_animation(animation):
     RUNNING_ANIMATION_THREADS.remove(animation)
 
 
-def unplugged(controller, brightness=50, frame_duration=0.03):
+def unplugged(controller, *, brightness: int | None = None, frame_duration: float = 0.03,
+              direction: str = 'vertical_up'):
     """
     Scrolls 'UNPLUGGED' vertically up the specified LED matrix.
 
@@ -65,13 +83,16 @@ def unplugged(controller, brightness=50, frame_duration=0.03):
     """
     ensure_thread_safety(controller)
     controller.clear()
-    prev_brightness = controller.brightness
-    controller.set_brightness(brightness)
-    controller.scroll_text('UNPLUGGED', direction='vertical_up', frame_duration=frame_duration)
-    controller.set_brightness(prev_brightness)
+    prev_brightness = getattr(controller, 'brightness', None)
+    if brightness is not None:
+        controller.set_brightness(brightness)
+    controller.scroll_text('UNPLUGGED', direction=direction, frame_duration=frame_duration)
+    if prev_brightness is not None:
+        controller.set_brightness(prev_brightness)
 
 
-def plugged_in(controller):
+def plugged_in(controller, *, brightness: int | None = None, frame_duration: float = 0.03,
+               direction: str = 'vertical_up'):
     """
     Runs a `scroll_text` animation reading "PLUGGED IN" on the given controller.
 
@@ -81,7 +102,12 @@ def plugged_in(controller):
     """
     ensure_thread_safety(controller)
     controller.clear()
-    controller.scroll_text('PLUGGED IN', direction='vertical_up', frame_duration=0.03)
+    prev_brightness = getattr(controller, 'brightness', None)
+    if brightness is not None:
+        controller.set_brightness(brightness)
+    controller.scroll_text('PLUGGED IN', direction=direction, frame_duration=frame_duration)
+    if prev_brightness is not None:
+        controller.set_brightness(prev_brightness)
 
 
 def drain_progress(
@@ -94,7 +120,7 @@ def drain_progress(
     ensure_thread_safety(controller)
     controller.clear()
 
-    ani = Animation.from_file('batt_down.json')
+    ani = _load_animation_from_package('batt_down.json')
 
     ani.set_all_frame_durations(1)
 
@@ -130,7 +156,7 @@ def second_matrix_unplugged(controller=None, loop=True):
     ensure_thread_safety(controller)
     controller.clear()
 
-    ani = Animation.from_file('batt_down.json')
+    ani = _load_animation_from_package('batt_down.json')
 
     ani.set_all_frame_durations(1)
 

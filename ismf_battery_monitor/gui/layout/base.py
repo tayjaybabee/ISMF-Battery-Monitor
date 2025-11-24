@@ -3,7 +3,7 @@ import copy
 
 from is_matrix_forge.log_engine import ROOT_LOGGER, Loggable
 from is_matrix_forge.monitor.gui.metaclasses import SingletonABCMeta
-from inspyre_toolbox.exceptional import CustomRootException
+from .._compat import CustomRootException
 
 
 class LayoutError(CustomRootException):

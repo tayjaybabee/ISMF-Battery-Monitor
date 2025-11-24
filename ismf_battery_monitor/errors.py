@@ -1,4 +1,4 @@
-from inspyre_toolbox.exceptional import CustomRootException
+from ._compat import CustomRootException
 
 
 class PowerMonitorError(CustomRootException):

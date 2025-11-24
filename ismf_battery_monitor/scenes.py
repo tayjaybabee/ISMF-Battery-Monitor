@@ -1,4 +1,6 @@
-from typing import List, Literal
+from __future__ import annotations
+
+from typing import List, Literal, Optional
 from is_matrix_forge.led_matrix.controller.helpers import find_leftmost, find_rightmost
 from is_matrix_forge.led_matrix.display.grid.composite import BackgroundGrid, ForegroundGrid, CompositeGrid
 from is_matrix_forge.led_matrix.controller import LEDMatrixController
@@ -12,7 +14,26 @@ CONTROLLER_MAP = {
 cached_found_controllers = []
 
 
-def get_composite_scene_for_battery_level(battery_percent: float):
+CHARGING_ICON = [
+    [0, 1, 0, 0],
+    [1, 1, 1, 0],
+    [0, 1, 0, 0],
+]
+
+DISCHARGING_ICON = [
+    [0, 0, 1, 0],
+    [0, 1, 1, 1],
+    [0, 0, 1, 0],
+]
+
+
+def get_composite_scene_for_battery_level(
+        battery_percent: float,
+        *,
+        digits_on_bottom: Optional[bool] = None,
+        invert_on_overlap: bool = True,
+        charging_state: Optional[bool] = None,
+):
     """
     Returns a CompositeGrid scene for the given battery percentage.
 
@@ -31,26 +52,55 @@ def get_composite_scene_for_battery_level(battery_percent: float):
 
     fg = ForegroundGrid()
 
-    on_bottom = False
-
-    if p > 85:
-        on_bottom = True
+    on_bottom = p > 85 if digits_on_bottom is None else digits_on_bottom
 
     fg.draw_digits(p, bottom_of_grid=on_bottom)
 
-    return CompositeGrid(background=bg, foreground=fg, invert_on_overlap=True)
+    _apply_charge_indicator(fg, charging_state)
+
+    return CompositeGrid(
+        background=bg,
+        foreground=fg,
+        invert_on_overlap=invert_on_overlap,
+    )
+
+
+def _apply_charge_indicator(foreground: ForegroundGrid, charging_state: Optional[bool]) -> None:
+    if charging_state is None:
+        return
+
+    pattern = CHARGING_ICON if charging_state else DISCHARGING_ICON
+    height = len(pattern)
+    width = len(pattern[0]) if pattern else 0
+
+    for row in range(height):
+        for col in range(width):
+            if not pattern[row][col]:
+                continue
+            try:
+                if col < foreground.width and row < foreground.height:  # type: ignore[attr-defined]
+                    foreground._grid[col][row] = 1  # type: ignore[attr-defined]
+            except AttributeError:  # pragma: no cover - fallback if grid lacks internals
+                return
 
 
 def draw_battery_level(
         battery_percent: float,
         grid: CompositeGrid = None,
         side: Literal['right', 'left'] = 'left',
-        controllers: List[LEDMatrixController] = None
+        controllers: List[LEDMatrixController] = None,
+        *,
+        digits_on_bottom: Optional[bool] = None,
+        invert_on_overlap: bool = True,
 ):
     global cached_found_controllers
 
     if grid is None:
-        grid = get_composite_scene_for_battery_level(battery_percent)
+        grid = get_composite_scene_for_battery_level(
+            battery_percent,
+            digits_on_bottom=digits_on_bottom,
+            invert_on_overlap=invert_on_overlap,
+        )
 
     if controllers is None and not cached_found_controllers:
         from is_matrix_forge.led_matrix.controller import get_controllers
