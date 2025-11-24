@@ -101,12 +101,12 @@ class BatteryMonitor:
         self.poll_interval = poll_interval
         self.debounce_secs = debounce_secs
 
-        self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._stop_event                           = threading.Event()
+        self._thread: Optional[threading.Thread]   = None
         self._last_status: Optional[BatteryStatus] = None
-        self._last_emit_ts: float = 0.0
+        self._last_emit_ts: float                  = 0.0
 
-        self._left_matrix = None
+        self._left_matrix  = None
         self._right_matrix = None
 
         # Resolve matrices lazily (won't enumerate on import)
