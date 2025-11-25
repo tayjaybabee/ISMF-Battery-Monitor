@@ -33,6 +33,7 @@ def get_composite_scene_for_battery_level(
         digits_on_bottom: Optional[bool] = None,
         invert_on_overlap: bool = True,
         charging_state: Optional[bool] = None,
+        show_charge_indicator: bool = True,
 ):
     """
     Returns a CompositeGrid scene for the given battery percentage.
@@ -56,7 +57,8 @@ def get_composite_scene_for_battery_level(
 
     fg.draw_digits(p, bottom_of_grid=on_bottom)
 
-    _apply_charge_indicator(fg, charging_state)
+    if show_charge_indicator:
+        _apply_charge_indicator(fg, charging_state)
 
     return CompositeGrid(
         background=bg,

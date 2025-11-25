@@ -64,7 +64,10 @@ class BatteryMonitorCLI(Loggable):
         self.monitor = BatteryMonitor(poll_interval=args.poll_interval)
         self.stop_event = Event()
         self.controllers: List[object] = []
-        self.last_charging_state: Optional[bool] = None
+        self.display_controller: Optional[object] = None
+        self.animation_controller: Optional[object] = None
+        self.animation_thread: Optional[Thread] = None
+        self.animation_charging_state: Optional[bool] = None
         self.exit_handler = ExitCallHandler()
         self.exit_handler.register_handler(self._shutdown)
         self._monitor_started = False
@@ -84,12 +87,13 @@ class BatteryMonitorCLI(Loggable):
             raise RuntimeError('No LED matrix controllers detected.')
 
         log.debug('Filtering controllers...')
-        controllers = self._filter_controllers(controllers)
+        self.display_controller, self.animation_controller = self._select_controllers(controllers)
+        controllers = [ctrl for ctrl in {self.display_controller, self.animation_controller} if ctrl]
         if not controllers:
             log.error('No LED matrix controllers matched the requested side selection.')
             raise RuntimeError('No LED matrix controllers matched the requested side selection.')
 
-        log.debug('Controllers: %s', controllers)
+        log.debug('Controllers (display/animation): %s / %s', self.display_controller, self.animation_controller)
 
         for controller in controllers:
             log.debug('Preparing controller: %s', controller)
@@ -107,17 +111,22 @@ class BatteryMonitorCLI(Loggable):
         log.debug('Controllers prepared: %s', controllers)
         return controllers
 
-    def _filter_controllers(self, controllers: List[object]) -> List[object]:
+    def _select_controllers(self, controllers: List[object]) -> tuple[Optional[object], Optional[object]]:
+        display_ctrl = None
+        animation_ctrl = None
+
         if getattr(self.args, 'left_only', False):
-            selected = [find_leftmost(controllers)]
-        elif getattr(self.args, 'right_only', False) or not (
-            getattr(self.args, 'left_only', False)
-            or getattr(self.args, 'right_only', False)
-        ):
-            selected = [find_rightmost(controllers)]
+            display_ctrl = find_leftmost(controllers)
+        elif getattr(self.args, 'right_only', False):
+            display_ctrl = find_rightmost(controllers)
         else:
-            selected = controllers
-        return [ctrl for ctrl in selected if ctrl is not None]
+            right = find_rightmost(controllers)
+            left = find_leftmost(controllers)
+            display_ctrl = right or left
+            if left is not None and left is not display_ctrl:
+                animation_ctrl = left
+
+        return display_ctrl, animation_ctrl
 
     def _toggle_flag(self, controller, name: str, enabled: bool) -> None:
         if not hasattr(controller, name):
@@ -147,6 +156,8 @@ class BatteryMonitorCLI(Loggable):
         if self._monitor_started:
             self.logger.info('Stopping battery monitor...')
         self.stop_event.set()
+        if self.animation_thread and self.animation_thread.is_alive():
+            self.animation_thread.join(timeout=1.0)
         if self._monitor_started:
             self.monitor.stop()
         self._restore_controllers()
@@ -169,55 +180,67 @@ class BatteryMonitorCLI(Loggable):
             return
 
         pct = status.battery_percent
-        self._draw_scene(pct, status.charging)
-        self._maybe_run_animation(status.charging)
+        self.animation_charging_state = status.charging
+        self._draw_scene(pct)
         self._log_battery_level(pct)
-        self.last_charging_state = status.charging
 
     def _log_unavailable(self, status) -> None:
         self.logger.debug('Battery percent unavailable in snapshot: %s', status)
 
-    def _draw_scene(self, battery_percent: int, charging_state: Optional[bool]) -> None:
+    def _draw_scene(self, battery_percent: int) -> None:
         scene = get_composite_scene_for_battery_level(
             battery_percent,
             digits_on_bottom=self.args.digits_on_bottom,
             invert_on_overlap=self.args.invert_on_overlap,
-            charging_state=charging_state
+            charging_state=None,
+            show_charge_indicator=False,
         )
 
-        for controller in self.controllers:
-            _ = Thread(target=scene.draw, args=[controller])
-
-            try:
-                _.start()
-            except Exception as exc:  # pragma: no cover - hardware specific
-                self.logger.error('Failed to draw scene on controller %s: %s', controller, exc)
-
-    def _maybe_run_animation(self, charging: Optional[bool]) -> None:
-        if not (
-            self.args.show_animations
-            and self.controllers
-            and self.last_charging_state is not None
-            and charging is not None
-            and charging != self.last_charging_state
-        ):
+        if not self.display_controller:
             return
 
-        animation_fn = play_batt_up_animation if charging else play_batt_down_animation
+        _ = Thread(target=scene.draw, args=[self.display_controller])
+
+        try:
+            _.start()
+        except Exception as exc:  # pragma: no cover - hardware specific
+            self.logger.error('Failed to draw scene on controller %s: %s', self.display_controller, exc)
+
+    def _start_animation_loop(self) -> None:
+        if not (self.args.show_animations and self.animation_controller):
+            return
+
+        self.animation_thread = Thread(target=self._animation_loop, daemon=True)
+        try:
+            self.animation_thread.start()
+        except Exception as exc:  # pragma: no cover - hardware specific
+            self.logger.warning('Failed to start animation thread: %s', exc)
+
+    def _animation_loop(self) -> None:
+        assert self.animation_controller  # for type checkers
         args = self.args
-        opts = {
-            'brightness':     args.animation_brightness,
-            'frame_duration': args.frame_duration,
-            'direction':      args.scroll_direction,
-        }
-        threads = []
-        for controller in self.controllers:
-            _ = Thread(target=animation_fn, args=[controller], kwargs=opts)
+        controller = self.animation_controller
+
+        while not self.stop_event.is_set():
+            charging = self.animation_charging_state
+            if charging is None:
+                time.sleep(0.2)
+                continue
+
+            animation_fn = play_batt_up_animation if charging else play_batt_down_animation
             try:
-                _.start()
-                threads.append(_)
+                animation_fn(
+                    controller,
+                    brightness=args.animation_brightness,
+                    frame_duration=args.frame_duration,
+                    direction=args.scroll_direction,
+                )
             except Exception as exc:  # pragma: no cover - hardware specific
                 self.logger.warning('Failed to run animation on %s: %s', controller, exc)
+                time.sleep(0.5)
+            finally:
+                if self.stop_event.is_set():
+                    break
 
     def _log_battery_level(self, battery_percent: int) -> None:
         if battery_percent <= self.args.critical_battery_threshold:
@@ -233,6 +256,7 @@ class BatteryMonitorCLI(Loggable):
     def run(self) -> None:
         try:
             self.controllers = self._prepare_controllers()
+            self._start_animation_loop()
             self.logger.info('Starting battery monitor loop...')
             self.monitor.start(self._handle_status)
             self._monitor_started = True
