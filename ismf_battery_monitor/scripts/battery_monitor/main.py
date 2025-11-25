@@ -12,7 +12,7 @@ from easy_exit_calls import ExitCallHandler
 
 from is_matrix_forge.led_matrix.controller.helpers import find_leftmost, find_rightmost
 from ismf_battery_monitor.log_engine import ROOT_LOGGER, Loggable
-from ...animations import plugged_in, unplugged
+from ...animations import play_batt_down_animation, play_batt_up_animation
 from ...controllers import get_cached_controllers
 from ...monitor import BatteryMonitor
 from ...scenes import get_composite_scene_for_battery_level
@@ -64,7 +64,7 @@ class BatteryMonitorCLI(Loggable):
         self.monitor = BatteryMonitor(poll_interval=args.poll_interval)
         self.stop_event = Event()
         self.controllers: List[object] = []
-        self.last_plugged_state: Optional[bool] = None
+        self.last_charging_state: Optional[bool] = None
         self.exit_handler = ExitCallHandler()
         self.exit_handler.register_handler(self._shutdown)
         self._monitor_started = False
@@ -110,7 +110,10 @@ class BatteryMonitorCLI(Loggable):
     def _filter_controllers(self, controllers: List[object]) -> List[object]:
         if getattr(self.args, 'left_only', False):
             selected = [find_leftmost(controllers)]
-        elif getattr(self.args, 'right_only', False):
+        elif getattr(self.args, 'right_only', False) or not (
+            getattr(self.args, 'left_only', False)
+            or getattr(self.args, 'right_only', False)
+        ):
             selected = [find_rightmost(controllers)]
         else:
             selected = controllers
@@ -150,10 +153,8 @@ class BatteryMonitorCLI(Loggable):
 
     def _wait_for_stop(self) -> None:
         log = self.method_logger
-        attempts = 0
         try:
             while not self.stop_event.is_set():
-                if
                 log.debug('Waiting for stop...')
                 time.sleep(0.2)
         except KeyboardInterrupt:  # pragma: no cover - handled by signals typically
@@ -169,9 +170,9 @@ class BatteryMonitorCLI(Loggable):
 
         pct = status.battery_percent
         self._draw_scene(pct, status.charging)
-        self._maybe_run_animation(status.ac_online)
+        self._maybe_run_animation(status.charging)
         self._log_battery_level(pct)
-        self.last_plugged_state = status.ac_online
+        self.last_charging_state = status.charging
 
     def _log_unavailable(self, status) -> None:
         self.logger.debug('Battery percent unavailable in snapshot: %s', status)
@@ -192,17 +193,17 @@ class BatteryMonitorCLI(Loggable):
             except Exception as exc:  # pragma: no cover - hardware specific
                 self.logger.error('Failed to draw scene on controller %s: %s', controller, exc)
 
-    def _maybe_run_animation(self, ac_online: Optional[bool]) -> None:
+    def _maybe_run_animation(self, charging: Optional[bool]) -> None:
         if not (
             self.args.show_animations
             and self.controllers
-            and self.last_plugged_state is not None
-            and ac_online is not None
-            and ac_online != self.last_plugged_state
+            and self.last_charging_state is not None
+            and charging is not None
+            and charging != self.last_charging_state
         ):
             return
 
-        animation_fn = plugged_in if ac_online else unplugged
+        animation_fn = play_batt_up_animation if charging else play_batt_down_animation
         args = self.args
         opts = {
             'brightness':     args.animation_brightness,

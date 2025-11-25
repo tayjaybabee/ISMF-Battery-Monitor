@@ -110,6 +110,43 @@ def plugged_in(controller, *, brightness: int | None = None, frame_duration: flo
         controller.set_brightness(prev_brightness)
 
 
+def _play_battery_direction_animation(controller, *, charging: bool, brightness: int | None = None,
+                                      frame_duration: float = 1.0) -> None:
+    ensure_thread_safety(controller)
+    controller.clear()
+    prev_brightness = getattr(controller, 'brightness', None)
+    if brightness is not None:
+        controller.set_brightness(brightness)
+
+    filename = 'batt_up.json' if charging else 'batt_down.json'
+    ani = _load_animation_from_package(filename)
+    ani.set_all_frame_durations(frame_duration)
+    ani.play(controller)
+
+    if prev_brightness is not None:
+        controller.set_brightness(prev_brightness)
+
+
+def play_batt_up_animation(controller, *, brightness: int | None = None,
+                           frame_duration: float = 1.0, **_: object) -> None:
+    _play_battery_direction_animation(
+        controller,
+        charging=True,
+        brightness=brightness,
+        frame_duration=frame_duration,
+    )
+
+
+def play_batt_down_animation(controller, *, brightness: int | None = None,
+                             frame_duration: float = 1.0, **_: object) -> None:
+    _play_battery_direction_animation(
+        controller,
+        charging=False,
+        brightness=brightness,
+        frame_duration=frame_duration,
+    )
+
+
 def drain_progress(
         controller=None,
         check_interval=3,
