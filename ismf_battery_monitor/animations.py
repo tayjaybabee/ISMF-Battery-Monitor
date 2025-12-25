@@ -162,10 +162,8 @@ def play_batt_direction_loop(
     """
     Play battery charging/discharging animation in a stoppable loop.
     
-    Note: The stop_event is only checked between animation iterations, not during
-    playback itself. This means the thread cannot respond to stop requests until
-    the current animation completes, which may delay shutdown by up to one full
-    animation cycle.
+    The animation can be stopped mid-playback by setting the stop_event, which will
+    call Animation.stop() to interrupt the current animation immediately.
     
     Args:
         controller: The LED matrix controller to animate
@@ -182,13 +180,27 @@ def play_batt_direction_loop(
     filename = 'batt_up.json' if charging else 'batt_down.json'
     ani = _load_animation_from_package(filename)
     ani.set_all_frame_durations(frame_duration)
-    ani.loop = False
+    ani.loop = True  # Let the animation loop itself
 
     try:
-        while not stop_event.is_set():
-            controller.clear()
-            ani.play(controller)
+        # Start the animation in loop mode
+        # We'll monitor stop_event and call ani.stop() when needed
+        from threading import Thread as MonitorThread
+        
+        def monitor_stop():
+            """Monitor the stop_event and stop the animation when signaled."""
+            stop_event.wait()
+            ani.stop()
+        
+        monitor_thread = MonitorThread(target=monitor_stop, daemon=True)
+        monitor_thread.start()
+        
+        # Play the animation (this blocks until ani.stop() is called)
+        controller.clear()
+        ani.play(controller)
     finally:
+        # Ensure animation is stopped
+        ani.stop()
         if prev_brightness is not None:
             controller.set_brightness(prev_brightness)
         controller.clear()
