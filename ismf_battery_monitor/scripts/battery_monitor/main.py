@@ -160,9 +160,7 @@ class BatteryMonitorCLI(Loggable):
 
         log.debug("Controllers after filtering: %s", controllers)
 
-        controllers_to_prepare = list(controllers)
-        if self.animation_controller is not None and self.animation_controller not in controllers_to_prepare:
-            controllers_to_prepare.append(self.animation_controller)
+        controllers_to_prepare = self._get_active_controllers(controllers)
 
         for controller in controllers_to_prepare:
             log.debug("Preparing controller: %s", controller)
@@ -188,20 +186,26 @@ class BatteryMonitorCLI(Loggable):
         left = find_leftmost(controllers)
         right = find_rightmost(controllers)
 
-        if getattr(self.args, "left_only", False):
-            selected = [left]
-            self.animation_controller = None
-        elif getattr(self.args, "right_only", False):
-            selected = [right]
-            self.animation_controller = None
-        else:
-            selected = [right or left]
-            if left is not None and right is not None and left is not right:
-                self.animation_controller = left if (right or left) is right else right
-            else:
-                self.animation_controller = None
+        primary = None
+        animation = None
 
-        return [ctrl for ctrl in selected if ctrl is not None]
+        if getattr(self.args, "left_only", False):
+            primary = left
+        elif getattr(self.args, "right_only", False):
+            primary = right
+        else:
+            primary = right or left
+            if left is not None and right is not None and left is not right:
+                animation = left if primary is right else right
+
+        self.animation_controller = animation
+        return [ctrl for ctrl in (primary,) if ctrl is not None]
+
+    def _get_active_controllers(self, controllers: List[object]) -> List[object]:
+        active = list(controllers)
+        if self.animation_controller is not None and self.animation_controller not in active:
+            active.append(self.animation_controller)
+        return active
 
     def _toggle_flag(self, controller: object, name: str, enabled: bool) -> None:
         if not hasattr(controller, name):
@@ -314,9 +318,12 @@ class BatteryMonitorCLI(Loggable):
             "direction": args.scroll_direction,
         }
 
-        controller = self.animation_controller
-        loop = controller is not None
-        if controller is not None:
+        primary = self.controllers[0]
+        secondary = self.animation_controller
+        controller = secondary or primary
+        loop = secondary is not None
+
+        if secondary:
             if charging == self.last_charging_state:
                 log.debug("Animation controller already showing state: %s", charging)
                 return
