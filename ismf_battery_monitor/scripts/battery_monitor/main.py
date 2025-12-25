@@ -247,10 +247,19 @@ class BatteryMonitorCLI(Loggable):
         self._restore_controllers()
 
     def _stop_animation_thread(self) -> None:
+        log = self.method_logger
+
         if self._animation_thread and self._animation_thread.is_alive():
-            if self._animation_stop is not None:
+            if self._animation_stop is None:
+                log.warning(
+                    "Animation thread running without stop event; unable to request stop.",
+                )
+            else:
                 self._animation_stop.set()
-            self._animation_thread.join(timeout=2)
+                self._animation_thread.join(timeout=2)
+                if self._animation_thread.is_alive():
+                    log.warning("Animation thread did not stop within timeout.")
+                    return
 
         self._animation_thread = None
         self._animation_stop = None

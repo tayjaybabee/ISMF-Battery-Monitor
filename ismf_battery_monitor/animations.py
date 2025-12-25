@@ -164,13 +164,14 @@ def play_batt_direction_loop(
     if brightness is not None:
         controller.set_brightness(brightness)
 
+    filename = 'batt_up.json' if charging else 'batt_down.json'
+    ani = _load_animation_from_package(filename)
+    ani.set_all_frame_durations(frame_duration)
+    ani.loop = False
+
     try:
         while not stop_event.is_set():
             controller.clear()
-            filename = 'batt_up.json' if charging else 'batt_down.json'
-            ani = _load_animation_from_package(filename)
-            ani.set_all_frame_durations(frame_duration)
-            ani.loop = False
             ani.play(controller)
     finally:
         if prev_brightness is not None:
