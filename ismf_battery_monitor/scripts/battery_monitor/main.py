@@ -92,6 +92,7 @@ class BatteryMonitorCLI(Loggable):
         self.stop_event = Event()
 
         self.controllers: List[object] = []
+        self.animation_controller: Optional[object] = None
         self.last_charging_state: Optional[bool] = None
 
         self.exit_handler = ExitCallHandler()
@@ -159,7 +160,11 @@ class BatteryMonitorCLI(Loggable):
 
         log.debug("Controllers after filtering: %s", controllers)
 
-        for controller in controllers:
+        controllers_to_prepare = list(controllers)
+        if self.animation_controller is not None and self.animation_controller not in controllers_to_prepare:
+            controllers_to_prepare.append(self.animation_controller)
+
+        for controller in controllers_to_prepare:
             log.debug("Preparing controller: %s", controller)
 
             if self.args.brightness is not None:
@@ -176,18 +181,25 @@ class BatteryMonitorCLI(Loggable):
                 log.debug("Enabling breathing for controller: %s", controller)
                 self._toggle_flag(controller, "breathing", True)
 
-        log.debug("Controllers prepared: %s", controllers)
+        log.debug("Controllers prepared: %s", controllers_to_prepare)
         return controllers
 
     def _filter_controllers(self, controllers: List[object]) -> List[object]:
+        left = find_leftmost(controllers)
+        right = find_rightmost(controllers)
+
         if getattr(self.args, "left_only", False):
-            selected = [find_leftmost(controllers)]
-        elif getattr(self.args, "right_only", False) or not (
-            getattr(self.args, "left_only", False) or getattr(self.args, "right_only", False)
-        ):
-            selected = [find_rightmost(controllers)]
+            selected = [left]
+            self.animation_controller = None
+        elif getattr(self.args, "right_only", False):
+            selected = [right]
+            self.animation_controller = None
         else:
-            selected = controllers
+            selected = [right or left]
+            if left is not None and right is not None and left is not right:
+                self.animation_controller = left if (right or left) is right else right
+            else:
+                self.animation_controller = None
 
         return [ctrl for ctrl in selected if ctrl is not None]
 
@@ -287,9 +299,7 @@ class BatteryMonitorCLI(Loggable):
         if not (
             getattr(self.args, "show_animations", False)
             and self.controllers
-            and self.last_charging_state is not None
             and charging is not None
-            and charging != self.last_charging_state
         ):
             log.debug("Not running animation: %s", charging)
             return
@@ -304,12 +314,17 @@ class BatteryMonitorCLI(Loggable):
             "direction": args.scroll_direction,
         }
 
-        loop = False
-        if len(self.controllers) > 1:
-            log.debug("Found multiple controllers, running animation on leftmost")
-            loop = True
-            controller = find_leftmost(self.controllers)
+        controller = self.animation_controller
+        loop = controller is not None
+        if controller is not None:
+            if charging == self.last_charging_state:
+                log.debug("Animation controller already showing state: %s", charging)
+                return
+            log.debug("Found secondary controller, running animation on it")
         else:
+            if self.last_charging_state is None or charging == self.last_charging_state:
+                log.debug("Not running animation on primary controller")
+                return
             log.debug("Found single controller, running animation on it")
             controller = self.controllers[0]
 
