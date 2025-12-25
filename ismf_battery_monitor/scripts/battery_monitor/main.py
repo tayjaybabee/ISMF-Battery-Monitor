@@ -277,7 +277,11 @@ class BatteryMonitorCLI(Loggable):
             charging_state=charging_state,
         )
 
-        for controller in self.controllers:
+        controllers = self.controllers
+        if getattr(self.args, "show_animations", False) and len(self.controllers) > 1:
+            controllers = [self.controllers[0]]
+
+        for controller in controllers:
             t = Thread(target=scene.draw, args=(controller,))
             try:
                 t.start()
@@ -306,7 +310,7 @@ class BatteryMonitorCLI(Loggable):
 
         if not should_animate:
             log.debug(
-                "Not running animation (%s controller rule), state: %s → %s",
+                "Not running animation (%s controller rule), state: %s -> %s",
                 "secondary" if has_secondary else "primary",
                 last,
                 charging,
