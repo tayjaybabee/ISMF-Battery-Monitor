@@ -180,14 +180,19 @@ class BatteryMonitorCLI(Loggable):
         return controllers
 
     def _filter_controllers(self, controllers: List[object]) -> List[object]:
+        left = find_leftmost(controllers)
+        right = find_rightmost(controllers)
+
         if getattr(self.args, "left_only", False):
-            selected = [find_leftmost(controllers)]
-        elif getattr(self.args, "right_only", False) or not (
-            getattr(self.args, "left_only", False) or getattr(self.args, "right_only", False)
-        ):
-            selected = [find_rightmost(controllers)]
+            selected = [left]
+        elif getattr(self.args, "right_only", False):
+            selected = [right]
         else:
-            selected = controllers
+            primary = right or left
+            secondary = None
+            if left is not None and right is not None and left is not right:
+                secondary = left if primary is right else right
+            selected = [primary, secondary]
 
         return [ctrl for ctrl in selected if ctrl is not None]
 
@@ -287,11 +292,25 @@ class BatteryMonitorCLI(Loggable):
         if not (
             getattr(self.args, "show_animations", False)
             and self.controllers
-            and self.last_charging_state is not None
             and charging is not None
-            and charging != self.last_charging_state
         ):
             log.debug("Not running animation: %s", charging)
+            return
+
+        has_secondary = len(self.controllers) > 1
+        last = self.last_charging_state
+        if has_secondary:
+            should_animate = charging != last
+        else:
+            should_animate = last is not None and charging != last
+
+        if not should_animate:
+            log.debug(
+                "Not running animation (%s controller rule), state: %s → %s",
+                "secondary" if has_secondary else "primary",
+                last,
+                charging,
+            )
             return
 
         log.debug("Running animation: %s", charging)
@@ -302,18 +321,17 @@ class BatteryMonitorCLI(Loggable):
             "brightness": args.animation_brightness,
             "frame_duration": args.frame_duration,
             "direction": args.scroll_direction,
+            "loop": has_secondary,
         }
 
-        loop = False
-        if len(self.controllers) > 1:
-            log.debug("Found multiple controllers, running animation on leftmost")
-            loop = True
-            controller = find_leftmost(self.controllers)
-        else:
-            log.debug("Found single controller, running animation on it")
-            controller = self.controllers[0]
-
-        opts["loop"] = loop
+        controller = self.controllers[1] if has_secondary else self.controllers[0]
+        log.debug(
+            "Running animation on %s controller: %s, charging=%s, loop=%s",
+            "secondary" if has_secondary else "primary",
+            controller,
+            charging,
+            opts["loop"],
+        )
 
         t = Thread(target=animation_fn, args=(controller,), kwargs=opts)
         try:
