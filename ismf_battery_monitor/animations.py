@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from importlib import resources
+from threading import Event
 
 from easy_exit_calls import ExitCallHandler
 from is_matrix_forge.led_matrix.controller.helpers import find_leftmost, find_rightmost
@@ -148,6 +149,32 @@ def play_batt_down_animation(controller, *, brightness: int | None = None,
         frame_duration=frame_duration,
         loop=loop
     )
+
+
+def play_batt_direction_loop(
+    controller,
+    *,
+    charging: bool,
+    stop_event: Event,
+    brightness: int | None = None,
+    frame_duration: float = 1.0,
+) -> None:
+    ensure_thread_safety(controller)
+    prev_brightness = getattr(controller, 'brightness', None)
+    if brightness is not None:
+        controller.set_brightness(brightness)
+
+    try:
+        while not stop_event.is_set():
+            controller.clear()
+            filename = 'batt_up.json' if charging else 'batt_down.json'
+            ani = _load_animation_from_package(filename)
+            ani.set_all_frame_durations(frame_duration)
+            ani.loop = False
+            ani.play(controller)
+    finally:
+        if prev_brightness is not None:
+            controller.set_brightness(prev_brightness)
 
 
 def drain_progress(
