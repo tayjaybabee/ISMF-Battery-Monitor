@@ -278,8 +278,8 @@ class BatteryMonitorCLI(Loggable):
         )
 
         controllers = self.controllers
-        if getattr(self.args, "show_animations", False) and len(self.controllers) > 1:
-            controllers = [self.controllers[0]]
+        if getattr(self.args, "show_animations", False) and len(controllers) > 1:
+            controllers = [controllers[0]]
 
         for controller in controllers:
             t = Thread(target=scene.draw, args=(controller,))
