@@ -92,7 +92,6 @@ class BatteryMonitorCLI(Loggable):
         self.stop_event = Event()
 
         self.controllers: List[object] = []
-        self.animation_controller: Optional[object] = None
         self.last_charging_state: Optional[bool] = None
 
         self.exit_handler = ExitCallHandler()
@@ -160,9 +159,7 @@ class BatteryMonitorCLI(Loggable):
 
         log.debug("Controllers after filtering: %s", controllers)
 
-        controllers_to_prepare = self._get_active_controllers(controllers)
-
-        for controller in controllers_to_prepare:
+        for controller in controllers:
             log.debug("Preparing controller: %s", controller)
 
             if self.args.brightness is not None:
@@ -179,33 +176,25 @@ class BatteryMonitorCLI(Loggable):
                 log.debug("Enabling breathing for controller: %s", controller)
                 self._toggle_flag(controller, "breathing", True)
 
-        log.debug("Controllers prepared: %s", controllers_to_prepare)
+        log.debug("Controllers prepared: %s", controllers)
         return controllers
 
     def _filter_controllers(self, controllers: List[object]) -> List[object]:
         left = find_leftmost(controllers)
         right = find_rightmost(controllers)
 
-        primary = None
-        animation = None
-
         if getattr(self.args, "left_only", False):
-            primary = left
+            selected = [left]
         elif getattr(self.args, "right_only", False):
-            primary = right
+            selected = [right]
         else:
             primary = right or left
+            secondary = None
             if left is not None and right is not None and left is not right:
-                animation = left if primary is right else right
+                secondary = left if primary is right else right
+            selected = [primary, secondary]
 
-        self.animation_controller = animation
-        return [ctrl for ctrl in (primary,) if ctrl is not None]
-
-    def _get_active_controllers(self, controllers: List[object]) -> List[object]:
-        active = list(controllers)
-        if self.animation_controller is not None and self.animation_controller not in active:
-            active.append(self.animation_controller)
-        return active
+        return [ctrl for ctrl in selected if ctrl is not None]
 
     def _toggle_flag(self, controller: object, name: str, enabled: bool) -> None:
         if not hasattr(controller, name):
@@ -308,6 +297,22 @@ class BatteryMonitorCLI(Loggable):
             log.debug("Not running animation: %s", charging)
             return
 
+        has_secondary = len(self.controllers) > 1
+        last = self.last_charging_state
+        if has_secondary:
+            should_animate = charging != last
+        else:
+            should_animate = last is not None and charging != last
+
+        if not should_animate:
+            log.debug(
+                "Not running animation (%s controller rule), state: %s → %s",
+                "secondary" if has_secondary else "primary",
+                last,
+                charging,
+            )
+            return
+
         log.debug("Running animation: %s", charging)
         animation_fn = play_batt_up_animation if charging else play_batt_down_animation
 
@@ -316,26 +321,17 @@ class BatteryMonitorCLI(Loggable):
             "brightness": args.animation_brightness,
             "frame_duration": args.frame_duration,
             "direction": args.scroll_direction,
+            "loop": has_secondary,
         }
 
-        primary = self.controllers[0]
-        secondary = self.animation_controller
-        controller = secondary or primary
-        loop = secondary is not None
-
-        if secondary:
-            if charging == self.last_charging_state:
-                log.debug("Animation controller already showing state: %s", charging)
-                return
-            log.debug("Found secondary controller, running animation on it")
-        else:
-            if self.last_charging_state is None or charging == self.last_charging_state:
-                log.debug("Not running animation on primary controller")
-                return
-            log.debug("Found single controller, running animation on it")
-            controller = self.controllers[0]
-
-        opts["loop"] = loop
+        controller = self.controllers[1] if has_secondary else self.controllers[0]
+        log.debug(
+            "Running animation on %s controller: %s, charging=%s, loop=%s",
+            "secondary" if has_secondary else "primary",
+            controller,
+            charging,
+            opts["loop"],
+        )
 
         t = Thread(target=animation_fn, args=(controller,), kwargs=opts)
         try:
