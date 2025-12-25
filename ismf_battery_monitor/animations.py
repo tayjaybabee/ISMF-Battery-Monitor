@@ -176,6 +176,7 @@ def play_batt_direction_loop(
     finally:
         if prev_brightness is not None:
             controller.set_brightness(prev_brightness)
+        controller.clear()
 
 
 def drain_progress(
