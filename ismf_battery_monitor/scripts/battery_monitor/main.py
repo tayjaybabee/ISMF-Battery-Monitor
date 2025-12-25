@@ -342,9 +342,8 @@ class BatteryMonitorCLI(Loggable):
         has_secondary = len(self.controllers) > 1
         last = self.last_charging_state
         if has_secondary:
-            # Note: The logic below relies on the check at line ~329 ensuring
-            # charging is not None. If refactored, ensure state comparison
-            # doesn't inadvertently match None == None on first call.
+            # Note: The logic below relies on the earlier guard ensuring charging is not None.
+            # If refactored, ensure state comparison doesn't inadvertently match None == None.
             if self._animation_thread and self._animation_thread.is_alive():
                 if self._animation_state == charging:
                     log.debug("Animation already running on secondary: %s", charging)

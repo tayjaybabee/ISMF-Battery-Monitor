@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from importlib import resources
-from threading import Event
+from threading import Event, Thread
 
 from easy_exit_calls import ExitCallHandler
 from is_matrix_forge.led_matrix.controller.helpers import find_leftmost, find_rightmost
@@ -185,14 +185,17 @@ def play_batt_direction_loop(
     try:
         # Start the animation in loop mode
         # We'll monitor stop_event and call ani.stop() when needed
-        from threading import Thread as MonitorThread
         
         def monitor_stop():
             """Monitor the stop_event and stop the animation when signaled."""
             stop_event.wait()
-            ani.stop()
+            try:
+                ani.stop()
+            except Exception:
+                # Suppress exceptions in daemon thread to ensure cleanup proceeds
+                pass
         
-        monitor_thread = MonitorThread(target=monitor_stop, daemon=True)
+        monitor_thread = Thread(target=monitor_stop, daemon=True)
         monitor_thread.start()
         
         # Play the animation (this blocks until ani.stop() is called)
