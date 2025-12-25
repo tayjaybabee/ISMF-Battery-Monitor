@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from importlib import resources
-from threading import Event
+from threading import Event, Thread
 
 from easy_exit_calls import ExitCallHandler
 from is_matrix_forge.led_matrix.controller.helpers import find_leftmost, find_rightmost
@@ -159,6 +159,19 @@ def play_batt_direction_loop(
     brightness: int | None = None,
     frame_duration: float = 1.0,
 ) -> None:
+    """
+    Play battery charging/discharging animation in a stoppable loop.
+    
+    The animation can be stopped mid-playback by setting the stop_event, which will
+    call Animation.stop() to interrupt the current animation immediately.
+    
+    Args:
+        controller: The LED matrix controller to animate
+        charging: True for charging animation, False for discharging
+        stop_event: Event to signal the loop to stop
+        brightness: Optional brightness level for the animation
+        frame_duration: Duration of each animation frame in seconds
+    """
     ensure_thread_safety(controller)
     prev_brightness = getattr(controller, 'brightness', None)
     if brightness is not None:
@@ -167,15 +180,33 @@ def play_batt_direction_loop(
     filename = 'batt_up.json' if charging else 'batt_down.json'
     ani = _load_animation_from_package(filename)
     ani.set_all_frame_durations(frame_duration)
-    ani.loop = False
+    ani.loop = True  # Let the animation loop itself
 
     try:
-        while not stop_event.is_set():
-            controller.clear()
-            ani.play(controller)
+        # Start the animation in loop mode
+        # We'll monitor stop_event and call ani.stop() when needed
+        
+        def monitor_stop():
+            """Monitor the stop_event and stop the animation when signaled."""
+            stop_event.wait()
+            try:
+                ani.stop()
+            except Exception:
+                # Suppress exceptions in daemon thread to ensure cleanup proceeds
+                pass
+        
+        monitor_thread = Thread(target=monitor_stop, daemon=True)
+        monitor_thread.start()
+        
+        # Play the animation (this blocks until ani.stop() is called)
+        controller.clear()
+        ani.play(controller)
     finally:
+        # Ensure animation is stopped
+        ani.stop()
         if prev_brightness is not None:
             controller.set_brightness(prev_brightness)
+        controller.clear()
 
 
 def drain_progress(

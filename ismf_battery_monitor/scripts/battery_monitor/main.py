@@ -258,12 +258,19 @@ class BatteryMonitorCLI(Loggable):
                 self._animation_stop.set()
                 self._animation_thread.join(timeout=2)
                 if self._animation_thread.is_alive():
-                    log.warning("Animation thread did not stop within timeout.")
+                    log.warning(
+                        "Animation thread did not terminate within timeout; "
+                        "leaving references for potential later cleanup."
+                    )
                     return
 
         self._animation_thread = None
         self._animation_stop = None
         self._animation_state = None
+
+    def _cleanup_finished_threads(self) -> None:
+        """Remove finished threads from the thread list to prevent memory leak."""
+        self._threads = [t for t in self._threads if t.is_alive()]
 
     def _wait_for_stop(self) -> None:
         log = self.method_logger
@@ -320,6 +327,9 @@ class BatteryMonitorCLI(Loggable):
     def _maybe_run_animation(self, charging: Optional[bool]) -> None:
         log = self.method_logger
 
+        # Clean up finished threads periodically to prevent memory leak
+        self._cleanup_finished_threads()
+
         if not (
             getattr(self.args, "show_animations", False)
             and self.controllers
@@ -332,6 +342,8 @@ class BatteryMonitorCLI(Loggable):
         has_secondary = len(self.controllers) > 1
         last = self.last_charging_state
         if has_secondary:
+            # Note: The logic below relies on the earlier guard ensuring charging is not None.
+            # If refactored, ensure state comparison doesn't inadvertently match None == None.
             if self._animation_thread and self._animation_thread.is_alive():
                 if self._animation_state == charging:
                     log.debug("Animation already running on secondary: %s", charging)
@@ -343,7 +355,7 @@ class BatteryMonitorCLI(Loggable):
                 )
                 self._stop_animation_thread()
 
-            should_animate = charging != last or self._animation_thread is None
+            should_animate = charging != last
             if not should_animate:
                 log.debug(
                     "Not running animation (%s controller rule), state: %s -> %s",
@@ -357,8 +369,8 @@ class BatteryMonitorCLI(Loggable):
             args = self.args
             controller = self.controllers[1]
             stop_event = Event()
-            self._animation_stop = stop_event
             self._animation_state = charging
+            self._animation_stop = stop_event
             log.debug(
                 "Running animation on secondary controller: %s, charging=%s",
                 controller,
@@ -376,9 +388,8 @@ class BatteryMonitorCLI(Loggable):
                 },
             )
             try:
-                t.start()
                 self._animation_thread = t
-                self.threads.append(t)
+                t.start()
             except Exception as exc:  # pragma: no cover - hardware specific
                 log.warning("Failed to run animation on secondary: %s", exc)
             return
