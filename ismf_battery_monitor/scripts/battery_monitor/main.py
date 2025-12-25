@@ -268,6 +268,10 @@ class BatteryMonitorCLI(Loggable):
         self._animation_stop = None
         self._animation_state = None
 
+    def _cleanup_finished_threads(self) -> None:
+        """Remove finished threads from the thread list to prevent memory leak."""
+        self._threads = [t for t in self._threads if t.is_alive()]
+
     def _wait_for_stop(self) -> None:
         log = self.method_logger
         waits = 0
@@ -323,6 +327,9 @@ class BatteryMonitorCLI(Loggable):
     def _maybe_run_animation(self, charging: Optional[bool]) -> None:
         log = self.method_logger
 
+        # Clean up finished threads periodically to prevent memory leak
+        self._cleanup_finished_threads()
+
         if not (
             getattr(self.args, "show_animations", False)
             and self.controllers
@@ -335,6 +342,9 @@ class BatteryMonitorCLI(Loggable):
         has_secondary = len(self.controllers) > 1
         last = self.last_charging_state
         if has_secondary:
+            # Note: The logic below relies on the check at line ~329 ensuring
+            # charging is not None. If refactored, ensure state comparison
+            # doesn't inadvertently match None == None on first call.
             if self._animation_thread and self._animation_thread.is_alive():
                 if self._animation_state == charging:
                     log.debug("Animation already running on secondary: %s", charging)

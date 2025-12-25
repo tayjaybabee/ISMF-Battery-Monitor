@@ -159,6 +159,21 @@ def play_batt_direction_loop(
     brightness: int | None = None,
     frame_duration: float = 1.0,
 ) -> None:
+    """
+    Play battery charging/discharging animation in a stoppable loop.
+    
+    Note: The stop_event is only checked between animation iterations, not during
+    playback itself. This means the thread cannot respond to stop requests until
+    the current animation completes, which may delay shutdown by up to one full
+    animation cycle.
+    
+    Args:
+        controller: The LED matrix controller to animate
+        charging: True for charging animation, False for discharging
+        stop_event: Event to signal the loop to stop
+        brightness: Optional brightness level for the animation
+        frame_duration: Duration of each animation frame in seconds
+    """
     ensure_thread_safety(controller)
     prev_brightness = getattr(controller, 'brightness', None)
     if brightness is not None:
